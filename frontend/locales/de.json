@@ -723,5 +723,10 @@
   "desktop.game_data_hint_no_game": "Lege den Spielpfad fest, um offizielle Gegenstands- und Farbnamen aus dem Client zu laden.",
   "runtime.btn_open_folder": "Ordner öffnen",
   "runtime.btn_open_file": "Öffnen",
-  "runtime.btn_open_config": "config.yaml öffnen"
+  "runtime.btn_open_config": "config.yaml öffnen",
+  "desktop.ko_game_data_path": "Koreanischer Spieldatenpfad (Optional)",
+  "desktop.ko_game_data_placeholder": "Optional: FINAL FANTASY XIV - KOREA\\game",
+  "desktop.game_data_hint_ko_external": "Koreanische Gegenstands- und Farbnamen werden aus dem koreanischen Client geladen; fehlende neuere Einträge greifen auf Global-Daten zurück (verfügbar: {langs}).",
+  "desktop.game_data_hint_ko_missing": "Der Global-Client enthält kein Koreanisch; es wird '{effective}' verwendet. Optional kannst du unten einen koreanischen Clientpfad festlegen (verfügbar: {langs}).",
+  "dialog.pick_ko_game_data": "Koreanischen FFXIV-Ordner (oder game-Ordner) wählen"
 }

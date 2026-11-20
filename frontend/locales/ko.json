@@ -723,5 +723,10 @@
   "desktop.game_data_hint_no_game": "게임 경로를 지정하면 클라이언트 데이터에서 공식 가구·염료 이름을 직접 불러옵니다.",
   "runtime.btn_open_folder": "폴더 열기",
   "runtime.btn_open_file": "열기",
-  "runtime.btn_open_config": "config.yaml 열기"
+  "runtime.btn_open_config": "config.yaml 열기",
+  "desktop.ko_game_data_path": "한국어 게임 데이터 경로 (선택)",
+  "desktop.ko_game_data_placeholder": "선택 사항: FINAL FANTASY XIV - KOREA\\game",
+  "desktop.game_data_hint_ko_external": "한국 클라이언트 데이터에서 한국어 가구·염료명을 불러오며, 미포함 신규 아이템은 글로벌 데이터로 폴백합니다 (지원: {langs}).",
+  "desktop.game_data_hint_ko_missing": "글로벌 클라이언트에 한국어 데이터가 없어 '{effective}'(으)로 표시합니다. 한국어 아이템명이 필요하면 아래에 한국 클라이언트 경로를 지정할 수 있습니다 (지원: {langs}).",
+  "dialog.pick_ko_game_data": "한국어 FFXIV 클라이언트 또는 game 폴더 선택"
 }

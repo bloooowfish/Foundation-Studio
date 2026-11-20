@@ -18,6 +18,8 @@ const STAIN_COL_NAME: usize = 6;
 #[serde(rename_all = "camelCase")]
 pub struct GameDataInfo {
     pub game_dir_valid: bool,
+    pub ko_data_dir_valid: bool,
+    pub using_ko_data_dir: bool,
     pub available_languages: Vec<String>,
     pub requested_preference: String,
     pub requested_locale: String,
@@ -228,6 +230,40 @@ fn build_reverse_item_map(table: &LangTable) -> HashMap<String, u32> {
     rev
 }
 
+fn empty_resolved_names(info: &GameDataInfo) -> ResolvedGameNames {
+    ResolvedGameNames {
+        effective_locale: info.effective_locale.clone(),
+        available_languages: info.available_languages.clone(),
+        items: HashMap::new(),
+        stains: HashMap::new(),
+        by_name: HashMap::new(),
+    }
+}
+
+fn lookup_item_with_fallback<'a>(
+    primary: &'a LangTable,
+    fallback: Option<&'a LangTable>,
+    id: u32,
+) -> Option<&'a str> {
+    primary
+        .items
+        .get(&id)
+        .or_else(|| fallback.and_then(|fb| fb.items.get(&id)))
+        .map(String::as_str)
+}
+
+fn lookup_stain_with_fallback<'a>(
+    primary: &'a LangTable,
+    fallback: Option<&'a LangTable>,
+    id: u8,
+) -> Option<&'a str> {
+    primary
+        .stains
+        .get(&id)
+        .or_else(|| fallback.and_then(|fb| fb.stains.get(&id)))
+        .map(String::as_str)
+}
+
 impl GameDataCache {
     pub fn new() -> Self {
         Self::default()
@@ -304,24 +340,48 @@ impl GameDataCache {
         )
         .to_string();
 
-        let Some(game_dir) = resolve_game_data_dir(&settings.game_path) else {
-            return GameDataInfo {
-                game_dir_valid: false,
-                available_languages: Vec::new(),
-                requested_preference,
-                requested_locale: requested_locale.clone(),
-                effective_locale: requested_locale,
-                requested_in_sqpack: false,
-            };
+        let global_dir = resolve_game_data_dir(&settings.game_path);
+        let global_langs: Vec<String> = global_dir
+            .as_deref()
+            .map(|d| self.get_available_languages(d).as_ref().clone())
+            .unwrap_or_default();
+
+        let ko_dir = resolve_game_data_dir(&settings.ko_game_data_path);
+        let ko_has_ko = ko_dir
+            .as_deref()
+            .is_some_and(|d| self.get_available_languages(d).iter().any(|l| l == "ko"));
+
+        let mut available_languages = global_langs.clone();
+        if ko_has_ko && !available_languages.iter().any(|l| l == "ko") {
+            available_languages.push("ko".to_string());
+        }
+
+        let (effective_locale, requested_in_sqpack, using_ko_data_dir) = if requested_locale == "ko"
+        {
+            if global_langs.iter().any(|l| l == "ko") {
+                ("ko".to_string(), true, false)
+            } else if ko_has_ko {
+                ("ko".to_string(), true, true)
+            } else {
+                let (eff, in_sq) =
+                    pick_effective_locale(&requested_locale, settings.language, &global_langs);
+                (eff, in_sq, false)
+            }
+        } else if !global_langs.is_empty() {
+            let (eff, in_sq) =
+                pick_effective_locale(&requested_locale, settings.language, &global_langs);
+            (eff, in_sq, false)
+        } else if ko_has_ko {
+            ("ko".to_string(), false, true)
+        } else {
+            (requested_locale.clone(), false, false)
         };
 
-        let available = self.get_available_languages(&game_dir);
-        let (effective_locale, requested_in_sqpack) =
-            pick_effective_locale(&requested_locale, settings.language, &available);
-
         GameDataInfo {
-            game_dir_valid: !available.is_empty(),
-            available_languages: available.as_ref().clone(),
+            game_dir_valid: !global_langs.is_empty() || ko_has_ko,
+            ko_data_dir_valid: ko_has_ko,
+            using_ko_data_dir,
+            available_languages,
             requested_preference,
             requested_locale,
             effective_locale,
@@ -337,62 +397,97 @@ impl GameDataCache {
         names: &[String],
     ) -> ResolvedGameNames {
         let info = self.info(settings);
-        let Some(game_dir) = resolve_game_data_dir(&settings.game_path) else {
-            return ResolvedGameNames {
-                effective_locale: info.effective_locale,
-                available_languages: info.available_languages,
-                items: HashMap::new(),
-                stains: HashMap::new(),
-                by_name: HashMap::new(),
-            };
-        };
-        if info.available_languages.is_empty() {
-            return ResolvedGameNames {
-                effective_locale: info.effective_locale,
-                available_languages: info.available_languages,
-                items: HashMap::new(),
-                stains: HashMap::new(),
-                by_name: HashMap::new(),
-            };
+        if !info.game_dir_valid || info.available_languages.is_empty() {
+            return empty_resolved_names(&info);
         }
 
-        let table = self.get_lang_table(&game_dir, &info.effective_locale);
+        let global_dir = resolve_game_data_dir(&settings.game_path);
+        let global_langs: Vec<String> = global_dir
+            .as_deref()
+            .map(|d| self.get_available_languages(d).as_ref().clone())
+            .unwrap_or_default();
+
+        let (primary_table, fallback_table, reverse) = if info.using_ko_data_dir {
+            let Some(ko_dir) = resolve_game_data_dir(&settings.ko_game_data_path) else {
+                return empty_resolved_names(&info);
+            };
+            let primary = self.get_lang_table(&ko_dir, "ko");
+            let fallback = if let Some(ref gd) = global_dir
+                && !global_langs.is_empty()
+            {
+                let client_code = crate::i18n::client_language_to_locale(settings.language);
+                let (fb_locale, _) =
+                    pick_effective_locale(client_code, settings.language, &global_langs);
+                Some(self.get_lang_table(gd, &fb_locale))
+            } else {
+                None
+            };
+            let rev = if !names.is_empty() {
+                if let Some(ref gd) = global_dir
+                    && global_langs.iter().any(|l| l == "en")
+                {
+                    Some(self.get_english_reverse_map(gd))
+                } else if self
+                    .get_available_languages(&ko_dir)
+                    .iter()
+                    .any(|l| l == "en")
+                {
+                    Some(self.get_english_reverse_map(&ko_dir))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            (primary, fallback, rev)
+        } else {
+            let Some(ref gd) = global_dir else {
+                return empty_resolved_names(&info);
+            };
+            let primary = self.get_lang_table(gd, &info.effective_locale);
+            let rev = if !names.is_empty() && global_langs.iter().any(|l| l == "en") {
+                Some(self.get_english_reverse_map(gd))
+            } else {
+                None
+            };
+            (primary, None, rev)
+        };
 
         let mut items = HashMap::new();
         for &id in item_ids {
             if id != 0
-                && let Some(name) = table.items.get(&id)
+                && let Some(name) =
+                    lookup_item_with_fallback(&primary_table, fallback_table.as_deref(), id)
             {
-                items.insert(id.to_string(), name.clone());
+                items.insert(id.to_string(), name.to_string());
             }
         }
 
         let mut stains = HashMap::new();
         for &id in stain_ids {
             if id != 0
-                && let Some(name) = table.stains.get(&id)
+                && let Some(name) =
+                    lookup_stain_with_fallback(&primary_table, fallback_table.as_deref(), id)
             {
-                stains.insert(id.to_string(), name.clone());
+                stains.insert(id.to_string(), name.to_string());
             }
         }
 
         let mut by_name = HashMap::new();
-        if !names.is_empty() {
-            let reverse = if info.available_languages.iter().any(|l| l == "en") {
-                Some(self.get_english_reverse_map(&game_dir))
-            } else {
-                None
-            };
+        if let Some(ref rev) = reverse {
             for raw in names {
                 let key = raw.trim().to_ascii_lowercase();
                 if key.is_empty() {
                     continue;
                 }
-                if let Some(ref rev) = reverse
-                    && let Some(&item_id) = rev.get(&key)
-                    && let Some(localized) = table.items.get(&item_id)
+                if let Some(&item_id) = rev.get(&key)
+                    && let Some(localized) = lookup_item_with_fallback(
+                        &primary_table,
+                        fallback_table.as_deref(),
+                        item_id,
+                    )
                 {
-                    by_name.insert(raw.clone(), localized.clone());
+                    by_name.insert(raw.clone(), localized.to_string());
                 }
             }
         }
@@ -512,5 +607,79 @@ mod tests {
             en_names.items.get("20718").map(String::as_str),
             Some("Hingan Flooring")
         );
+    }
+
+    #[test]
+    fn lookup_falls_back_per_item_when_missing_in_primary_table() {
+        let mut primary = LangTable::default();
+        primary.items.insert(20718, "\u{D55C}\u{BC29}".to_string());
+        primary.stains.insert(1, "\u{C21C}\u{BC31}".to_string());
+
+        let mut global = LangTable::default();
+        global.items.insert(20718, "Hingan Flooring".to_string());
+        global
+            .items
+            .insert(51250, "Square Ceiling Lamp".to_string());
+        global.stains.insert(1, "Snow White".to_string());
+        global.stains.insert(100, "New Patch Dye".to_string());
+
+        assert_eq!(
+            lookup_item_with_fallback(&primary, Some(&global), 20718),
+            Some("\u{D55C}\u{BC29}")
+        );
+        assert_eq!(
+            lookup_item_with_fallback(&primary, Some(&global), 51250),
+            Some("Square Ceiling Lamp")
+        );
+        assert_eq!(
+            lookup_item_with_fallback(&primary, Some(&global), 99999),
+            None
+        );
+
+        assert_eq!(
+            lookup_stain_with_fallback(&primary, Some(&global), 1),
+            Some("\u{C21C}\u{BC31}")
+        );
+        assert_eq!(
+            lookup_stain_with_fallback(&primary, Some(&global), 100),
+            Some("New Patch Dye")
+        );
+        assert_eq!(lookup_stain_with_fallback(&primary, None, 100), None);
+    }
+
+    #[test]
+    fn info_reports_ko_data_dir_invalid_when_unset() {
+        let cache = GameDataCache::new();
+        let unset = StudioSettings {
+            game_path: String::new(),
+            ko_game_data_path: String::new(),
+            game_data_locale: "ko".to_string(),
+            ..Default::default()
+        };
+        let info = cache.info(&unset);
+        assert!(!info.game_dir_valid);
+        assert!(!info.ko_data_dir_valid);
+        assert!(!info.using_ko_data_dir);
+        assert!(!info.requested_in_sqpack);
+
+        let local_game = Path::new(r"D:\SquareEnix\FINAL FANTASY XIV - A Realm Reborn\game");
+        if local_game.join("sqpack").join("ffxiv").is_dir() {
+            let global_only = StudioSettings {
+                game_path: local_game
+                    .join("ffxiv_dx11.exe")
+                    .to_string_lossy()
+                    .into_owned(),
+                language: 0,
+                game_data_locale: "ko".to_string(),
+                ko_game_data_path: String::new(),
+                ..Default::default()
+            };
+            let g_info = cache.info(&global_only);
+            assert!(g_info.game_dir_valid);
+            assert!(!g_info.ko_data_dir_valid);
+            assert!(!g_info.using_ko_data_dir);
+            assert!(!g_info.requested_in_sqpack);
+            assert_eq!(g_info.effective_locale, "ja");
+        }
     }
 }

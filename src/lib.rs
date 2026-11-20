@@ -186,6 +186,7 @@ fn save_settings_cmd(
     normalized.expansion_level = normalize_expansion_level(normalized.expansion_level);
     normalized.ui_locale = i18n::normalize_preference(&normalized.ui_locale);
     normalized.game_data_locale = i18n::normalize_game_data_locale(&normalized.game_data_locale);
+    normalized.ko_game_data_path = normalized.ko_game_data_path.trim().to_string();
     settings::apply_local_account_defaults(&mut normalized);
     preserve_backend_owned_fields(&state, &mut normalized);
     save_settings(&normalized)?;

@@ -62,7 +62,7 @@ pub fn registration_key(foundation_root: &str, username: &str) -> String {
 
 fn local_http_client() -> Client {
     Client::builder()
-        .user_agent("Foundation-Studio/0.1.0")
+        .user_agent(concat!("Foundation-Studio/", env!("CARGO_PKG_VERSION")))
         .redirect(Policy::none())
         .no_proxy()
         .connect_timeout(Duration::from_secs(5))

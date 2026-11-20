@@ -723,5 +723,10 @@
   "desktop.game_data_hint_no_game": "Définissez le chemin du jeu pour charger les noms officiels d'objets et de teintures.",
   "runtime.btn_open_folder": "Ouvrir le dossier",
   "runtime.btn_open_file": "Ouvrir",
-  "runtime.btn_open_config": "Ouvrir config.yaml"
+  "runtime.btn_open_config": "Ouvrir config.yaml",
+  "desktop.ko_game_data_path": "Chemin des données coréennes (Optionnel)",
+  "desktop.ko_game_data_placeholder": "Optionnel : FINAL FANTASY XIV - KOREA\\game",
+  "desktop.game_data_hint_ko_external": "Les noms coréens d'objets et de teintures sont chargés depuis le client coréen ; les éléments plus récents absents se replient sur les données globales (disponibles : {langs}).",
+  "desktop.game_data_hint_ko_missing": "Le client global ne contient pas le coréen ; repli sur '{effective}'. Vous pouvez indiquer un client coréen ci-dessous si besoin (disponibles : {langs}).",
+  "dialog.pick_ko_game_data": "Sélectionner le dossier client FFXIV coréen (ou dossier game)"
 }

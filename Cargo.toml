@@ -1,6 +1,6 @@
 [package]
 name = "foundation-studio"
-version = "0.1.0"
+version = "7.58.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Foundation Studio — Unified Tauri v2 desktop launcher, ReMakePlace live sync, and Housing Studio for Foundation"

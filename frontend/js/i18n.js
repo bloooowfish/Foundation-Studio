@@ -16,6 +16,7 @@
   let clientLanguage = 0;
   let activeGameLocale = 'ja';
   let lastGameDataInfo = null;
+  let lastGameDataSig = '';
   let gameNameCache = { locale: 'ja', items: {}, stains: {}, byName: {} };
 
   function normalizeLocaleTag(tag) {
@@ -72,6 +73,10 @@
 
   function resetGameNameCache() {
     gameNameCache = { locale: activeGameLocale, items: {}, stains: {}, byName: {} };
+  }
+
+  function gameDataSig(info) {
+    return `${info?.effectiveLocale || ''}|${info?.usingKoDataDir ? '1' : '0'}|${info?.koDataDirValid ? '1' : '0'}|${info?.gameDirValid ? '1' : '0'}`;
   }
 
   function isGameTermKey(key) {
@@ -276,8 +281,10 @@
     if (Bridge && typeof Bridge.setGameDataLocale === 'function') {
       info = await Bridge.setGameDataLocale(gameDataPreference);
       lastGameDataInfo = info;
+      lastGameDataSig = gameDataSig(info);
       activeGameLocale = normalizeLocaleTag(info?.requestedLocale || computeActiveGameLocale());
     } else {
+      lastGameDataSig = '';
       activeGameLocale = computeActiveGameLocale();
     }
     resetGameNameCache();
@@ -310,14 +317,14 @@
     }
     const info = await Bridge.getGameDataInfo();
     lastGameDataInfo = info || null;
-    if (info?.requestedLocale) {
-      const nextGameLocale = normalizeLocaleTag(info.requestedLocale);
-      if (nextGameLocale !== activeGameLocale) {
-        activeGameLocale = nextGameLocale;
-        resetGameNameCache();
-        applyDom(document);
-        notifyListeners();
-      }
+    const nextSig = gameDataSig(info);
+    const nextGameLocale = info?.requestedLocale ? normalizeLocaleTag(info.requestedLocale) : activeGameLocale;
+    if (nextGameLocale !== activeGameLocale || nextSig !== lastGameDataSig) {
+      lastGameDataSig = nextSig;
+      activeGameLocale = nextGameLocale;
+      resetGameNameCache();
+      applyDom(document);
+      notifyListeners();
     }
     return info;
   }

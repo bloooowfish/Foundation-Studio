@@ -42,6 +42,8 @@ pub struct StudioSettings {
     pub ui_locale: String,
     #[serde(default = "default_game_data_locale")]
     pub game_data_locale: String,
+    #[serde(default)]
+    pub ko_game_data_path: String,
     /// `"<foundation root>|<username>"` once the local account was registered on that root.
     #[serde(default)]
     pub local_account_registered_for: Option<String>,
@@ -97,6 +99,7 @@ impl Default for StudioSettings {
             minimize_to_tray_on_close: true,
             ui_locale: default_ui_locale(),
             game_data_locale: default_game_data_locale(),
+            ko_game_data_path: String::new(),
             local_account_registered_for: None,
         }
     }
@@ -125,6 +128,7 @@ struct StudioSettingsFile {
     minimize_to_tray_on_close: bool,
     ui_locale: String,
     game_data_locale: String,
+    ko_game_data_path: String,
     local_account_registered_for: Option<String>,
 }
 
@@ -156,6 +160,7 @@ impl StudioSettingsFile {
             minimize_to_tray_on_close: settings.minimize_to_tray_on_close,
             ui_locale: crate::i18n::normalize_preference(&settings.ui_locale),
             game_data_locale: crate::i18n::normalize_game_data_locale(&settings.game_data_locale),
+            ko_game_data_path: settings.ko_game_data_path.trim().to_string(),
             local_account_registered_for: settings.local_account_registered_for.clone(),
         }
     }
@@ -189,6 +194,7 @@ impl StudioSettingsFile {
             minimize_to_tray_on_close: self.minimize_to_tray_on_close,
             ui_locale: crate::i18n::normalize_preference(&self.ui_locale),
             game_data_locale: crate::i18n::normalize_game_data_locale(&self.game_data_locale),
+            ko_game_data_path: self.ko_game_data_path.trim().to_string(),
             local_account_registered_for: self
                 .local_account_registered_for
                 .clone()
@@ -448,6 +454,7 @@ pub fn import_legacy_launcher_json(raw: &str) -> Result<StudioSettings, String> 
         minimize_to_tray_on_close: true,
         ui_locale: default_ui_locale(),
         game_data_locale: default_game_data_locale(),
+        ko_game_data_path: String::new(),
         local_account_registered_for: None,
     };
 
@@ -634,6 +641,7 @@ mod tests {
             password: "super-secret-password-!@#".to_string(),
             open_dashboard_on_launch: false,
             ui_locale: "ja-JP".to_string(),
+            ko_game_data_path: r"  D:\FFXIV_KR\game  ".to_string(),
             ..Default::default()
         };
 
@@ -647,7 +655,9 @@ mod tests {
         assert_eq!(loaded.password, "super-secret-password-!@#");
         assert!(!loaded.open_dashboard_on_launch);
         assert_eq!(loaded.ui_locale, "ja");
+        assert_eq!(loaded.ko_game_data_path, r"D:\FFXIV_KR\game");
         assert_eq!(StudioSettings::default().ui_locale, "auto");
+        assert!(StudioSettings::default().ko_game_data_path.is_empty());
 
         let _ = fs::remove_dir_all(&dir);
     }

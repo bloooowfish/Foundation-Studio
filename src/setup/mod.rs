@@ -144,14 +144,14 @@ impl Drop for BusyGuard<'_> {
 impl SetupManager {
     pub fn new() -> Self {
         let http = Client::builder()
-            .user_agent("Foundation-Studio/0.1.0")
+            .user_agent(concat!("Foundation-Studio/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_secs(15))
             .timeout(Duration::from_secs(300))
             .build()
             .unwrap_or_else(|_| Client::new());
 
         let download_http = Client::builder()
-            .user_agent("Foundation-Studio/0.1.0")
+            .user_agent(concat!("Foundation-Studio/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_secs(15))
             .read_timeout(Duration::from_secs(60))
             .build()

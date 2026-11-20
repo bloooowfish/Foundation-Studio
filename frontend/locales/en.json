@@ -723,5 +723,10 @@
   "desktop.game_data_hint_no_game": "Set the Game Path above to load official localized item and dye names directly from your client.",
   "runtime.btn_open_folder": "Open Folder",
   "runtime.btn_open_file": "Open",
-  "runtime.btn_open_config": "Open config.yaml"
+  "runtime.btn_open_config": "Open config.yaml",
+  "desktop.ko_game_data_path": "Korean Client Data Path (Optional)",
+  "desktop.ko_game_data_placeholder": "Optional: FINAL FANTASY XIV - KOREA\\game",
+  "desktop.game_data_hint_ko_external": "Loading Korean item and dye names from the Korean client data path; missing newer items fall back to Global data (available: {langs}).",
+  "desktop.game_data_hint_ko_missing": "Global client data does not contain Korean; using '{effective}'. Optionally set a Korean client data path below for Korean item names (available: {langs}).",
+  "dialog.pick_ko_game_data": "Select Korean FFXIV client folder (or game folder)"
 }

@@ -723,5 +723,10 @@
   "desktop.game_data_hint_no_game": "ゲームパスを設定すると、クライアントから公式の家具・カララント名を直接読み込みます。",
   "runtime.btn_open_folder": "フォルダーを開く",
   "runtime.btn_open_file": "開く",
-  "runtime.btn_open_config": "config.yaml を開く"
+  "runtime.btn_open_config": "config.yaml を開く",
+  "desktop.ko_game_data_path": "韓国語クライアントデータパス (任意)",
+  "desktop.ko_game_data_placeholder": "任意: FINAL FANTASY XIV - KOREA\\game",
+  "desktop.game_data_hint_ko_external": "韓国語クライアントから韓国語の家具・カララント名を読み込み、未収録の新規アイテムはグローバル版へフォールバックします (対応: {langs})。",
+  "desktop.game_data_hint_ko_missing": "グローバル版データに韓国語がないため '{effective}' を使用します。必要に応じて下の欄で韓国語クライアントパスを指定できます (対応: {langs})。",
+  "dialog.pick_ko_game_data": "韓国語版 FFXIV フォルダー（または game フォルダー）を選択"
 }
