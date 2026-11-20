@@ -1,0 +1,202 @@
+/* Unified Launcher, RMP Live Sync, Foundation Server & Watched Preset Styles */
+
+.btn-pin {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.btn-pin.active {
+  background: rgba(59, 130, 246, 0.22);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.locale-select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 5px 8px;
+  height: 29px;
+  cursor: pointer;
+}
+
+.locale-select:hover,
+.locale-select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.14s ease;
+}
+
+.status-pill:hover {
+  border-color: var(--accent);
+}
+
+.dot-off {
+  background: #64748b;
+}
+
+.dot-err {
+  background: var(--danger);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.7);
+}
+
+.launcher-grid {
+  display: grid;
+  grid-template-columns: minmax(380px, 1.15fr) minmax(320px, 0.95fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.input-with-btn {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.input-with-btn input {
+  flex: 1;
+  min-width: 0;
+}
+
+.mono-box {
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 11px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text);
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.launcher-log-box {
+  height: 145px;
+  overflow-y: auto;
+  white-space: pre;
+  word-break: normal;
+}
+
+.server-console-box {
+  max-height: 220px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  margin-top: 8px;
+}
+
+.rmp-telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+  margin: 8px 0 10px;
+}
+
+.telemetry-cell {
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 9px;
+}
+
+.telemetry-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.telemetry-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.preflight-list {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--warn-bg);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  color: #fcd34d;
+  font-size: 12px;
+}
+
+.watch-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.watch-bar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.watch-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.watch-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--input);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.watch-chip button {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 3px;
+  font-weight: 700;
+}
+
+.watch-chip button:hover {
+  color: var(--danger);
+}
+
+input[type="password"] {
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: var(--text);
+  outline: none;
+}
+
+input[type="password"]:focus {
+  border-color: var(--accent);
+}
+
+@media (max-width: 1100px) {
+  .launcher-grid {
+    grid-template-columns: 1fr;
+  }
+}

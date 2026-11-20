@@ -1,0 +1,47 @@
+[package]
+name = "foundation-studio"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+description = "Foundation Studio — Unified Tauri v2 desktop launcher, ReMakePlace live sync, and Housing Studio for Foundation"
+
+[lib]
+name = "foundation_studio"
+path = "src/lib.rs"
+
+[[bin]]
+name = "foundation-studio"
+path = "src/main.rs"
+
+[dependencies]
+tauri = { version = "2", features = ["custom-protocol", "tray-icon"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-single-instance = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "process", "io-util"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "native-tls", "charset"] }
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+url = "2"
+base64 = "0.22"
+notify = "7"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+rmp-bridge-relay = { path = "../rmp-bridge/relay" }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_Security",
+    "Win32_Security_Cryptography",
+    "Win32_System_Memory",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+    "Win32_System_Diagnostics_ToolHelp",
+] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
