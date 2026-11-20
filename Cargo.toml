@@ -29,6 +29,8 @@ base64 = "0.22"
 notify = "7"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+sha2 = "0.10"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 rmp-bridge-relay = { path = "../rmp-bridge/relay" }
 
 [target.'cfg(windows)'.dependencies]

@@ -245,6 +245,39 @@ fn appdata_dir() -> PathBuf {
         .unwrap_or_else(std::env::temp_dir)
 }
 
+pub fn local_appdata_dir() -> PathBuf {
+    std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(appdata_dir)
+}
+
+pub fn managed_runtime_root() -> PathBuf {
+    local_appdata_dir().join("FoundationStudio").join("runtime")
+}
+
+pub fn managed_foundation_dir() -> PathBuf {
+    managed_runtime_root().join("foundation")
+}
+
+pub fn managed_rmp_bridge_dir() -> PathBuf {
+    managed_runtime_root().join("rmp-bridge")
+}
+
+fn is_foundation_root_dir(dir: &Path) -> bool {
+    dir.join("config.yaml").is_file()
+        || dir.join("kawari-run.exe").is_file()
+        || dir
+            .join("target")
+            .join("debug")
+            .join("kawari-run.exe")
+            .is_file()
+        || dir
+            .join("target")
+            .join("release")
+            .join("kawari-run.exe")
+            .is_file()
+}
+
 pub fn detect_default_foundation_root() -> Option<PathBuf> {
     if let Ok(exe) = std::env::current_exe() {
         let mut cur = exe.parent();
@@ -253,15 +286,19 @@ pub fn detect_default_foundation_root() -> Option<PathBuf> {
                 break;
             };
             let sibling = dir.join("Foundation");
-            if sibling.join("config.yaml").is_file() {
+            if is_foundation_root_dir(&sibling) {
                 return Some(sibling);
             }
             cur = dir.parent();
         }
     }
     let default_path = Path::new(DEFAULT_FOUNDATION_DIR);
-    if default_path.join("config.yaml").is_file() {
-        Some(default_path.to_path_buf())
+    if is_foundation_root_dir(default_path) {
+        return Some(default_path.to_path_buf());
+    }
+    let managed = managed_foundation_dir();
+    if is_foundation_root_dir(&managed) {
+        Some(managed)
     } else {
         None
     }

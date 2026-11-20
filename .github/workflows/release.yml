@@ -1,0 +1,82 @@
+name: Release (Windows x64)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-x64:
+    name: Build & Package (Windows x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Foundation-Studio
+        uses: actions/checkout@v4
+        with:
+          path: Foundation-Studio
+
+      - name: Checkout sibling rmp-bridge
+        uses: actions/checkout@v4
+        with:
+          repository: bloooowfish/rmp-bridge
+          path: rmp-bridge
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Foundation-Studio
+
+      - name: Run unit tests
+        run: cargo test --manifest-path Foundation-Studio/Cargo.toml
+
+      - name: Build release binary
+        run: cargo build --release --manifest-path Foundation-Studio/Cargo.toml
+
+      - name: Stage release bundle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $stage = Join-Path $PWD 'stage'
+          $dist = Join-Path $PWD 'dist'
+          if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
+          if (Test-Path $dist) { Remove-Item -Recurse -Force $dist }
+          New-Item -ItemType Directory -Force -Path $stage, $dist | Out-Null
+
+          $exe = 'Foundation-Studio\target\release\foundation-studio.exe'
+          if (-not (Test-Path $exe)) {
+            throw "Missing built executable: $exe"
+          }
+
+          Copy-Item -Path $exe -Destination (Join-Path $stage 'foundation-studio.exe') -Force
+          Copy-Item -Path 'Foundation-Studio\LICENSE' -Destination (Join-Path $stage 'LICENSE') -Force
+          Copy-Item -Path 'Foundation-Studio\README.md' -Destination (Join-Path $stage 'README.md') -Force
+
+          $zipPath = Join-Path $dist 'foundation-studio-windows-x64.zip'
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zipPath -CompressionLevel Optimal -Force
+
+          $hash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path (Join-Path $dist 'SHA256SUMS.txt') -Value "$hash  foundation-studio-windows-x64.zip" -Encoding UTF8
+          Write-Host "Packaged $zipPath (sha256: $hash)"
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundation-studio-windows-x64
+          path: dist/
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/foundation-studio-windows-x64.zip
+            dist/SHA256SUMS.txt
+          generate_release_notes: true

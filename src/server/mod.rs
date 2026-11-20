@@ -167,7 +167,13 @@ impl FoundationServerController {
         let (mode, pid, active_profile, active_root) = match (managed_info, probed.as_ref()) {
             (Some((mpid, mprof, mroot)), _) => ("managed", Some(mpid), mprof, mroot),
             (None, Some(_)) => ("external", None, profile.to_string(), root_str.clone()),
-            (None, None) => ("stopped", None, profile.to_string(), root_str.clone()),
+            (None, None) => {
+                let resolved_prof = resolved_root
+                    .as_deref()
+                    .map(|p| resolve_binary_dir(p, profile).1)
+                    .unwrap_or_else(|| normalize_profile(profile));
+                ("stopped", None, resolved_prof, root_str.clone())
+            }
         };
 
         let preflight_issues = if mode == "stopped" {
@@ -243,19 +249,17 @@ impl FoundationServerController {
             return Err(msg);
         }
 
-        let run_exe = root_path
-            .join("target")
-            .join(&profile_norm)
-            .join("kawari-run.exe");
+        let (bin_dir, effective_profile) = resolve_binary_dir(&root_path, &profile_norm);
+        let run_exe = bin_dir.join("kawari-run.exe");
 
-        let (child, pid, run_id) = self.spawn_with_job(&root_path, &profile_norm, &run_exe)?;
+        let (child, pid, run_id) = self.spawn_with_job(&root_path, &effective_profile, &run_exe)?;
         self.set_last_error(None);
         self.push_log(
             &app,
             "system",
             format!(
                 "Foundation server started (profile={}, PID={}, CWD={})",
-                profile_norm,
+                effective_profile,
                 pid,
                 root_path.display()
             ),
@@ -263,7 +267,7 @@ impl FoundationServerController {
 
         self.spawn_io_and_wait_threads(app.clone(), child, run_id, sim_base_url.to_string());
         Ok(self
-            .get_status(foundation_root, &profile_norm, sim_base_url)
+            .get_status(foundation_root, &effective_profile, sim_base_url)
             .await)
     }
 
@@ -519,18 +523,48 @@ fn create_kill_on_close_job() -> Result<JobObjectHandle, String> {
 }
 
 pub fn normalize_profile(profile: &str) -> String {
-    if profile.trim().eq_ignore_ascii_case("release") {
+    let trimmed = profile.trim();
+    if trimmed.eq_ignore_ascii_case("release") {
         "release".to_string()
+    } else if trimmed.eq_ignore_ascii_case("prebuilt") {
+        "prebuilt".to_string()
     } else {
         "debug".to_string()
     }
+}
+
+pub fn resolve_binary_dir(root: &Path, profile: &str) -> (PathBuf, String) {
+    let norm = normalize_profile(profile);
+    if norm == "prebuilt" {
+        return (root.to_path_buf(), "prebuilt".to_string());
+    }
+    let cargo_dir = root.join("target").join(&norm);
+    if root.join("kawari-run.exe").is_file() && !cargo_dir.join("kawari-run.exe").is_file() {
+        return (root.to_path_buf(), "prebuilt".to_string());
+    }
+    (cargo_dir, norm)
+}
+
+fn is_foundation_root_candidate(dir: &Path) -> bool {
+    dir.join("config.yaml").is_file()
+        || dir.join("kawari-run.exe").is_file()
+        || dir
+            .join("target")
+            .join("debug")
+            .join("kawari-run.exe")
+            .is_file()
+        || dir
+            .join("target")
+            .join("release")
+            .join("kawari-run.exe")
+            .is_file()
 }
 
 pub fn resolve_foundation_root(configured: &str) -> Option<PathBuf> {
     let trimmed = configured.trim().trim_matches('"');
     if !trimmed.is_empty() {
         let p = PathBuf::from(trimmed);
-        if p.join("config.yaml").is_file() {
+        if is_foundation_root_candidate(&p) {
             return Some(p);
         }
     }
@@ -539,7 +573,7 @@ pub fn resolve_foundation_root(configured: &str) -> Option<PathBuf> {
 
 pub fn check_preflight_issues(root: &Path, profile: &str) -> Vec<PreflightIssue> {
     let mut issues = Vec::new();
-    let profile_dir = root.join("target").join(profile);
+    let (profile_dir, effective_profile) = resolve_binary_dir(root, profile);
 
     if !root.join("config.yaml").is_file() {
         issues.push(PreflightIssue {
@@ -551,7 +585,7 @@ pub fn check_preflight_issues(root: &Path, profile: &str) -> Vec<PreflightIssue>
         if !profile_dir.join(bin).is_file() {
             issues.push(PreflightIssue {
                 code: "missing_binary".to_string(),
-                detail: Some(format!("{profile}/{bin}")),
+                detail: Some(format!("{effective_profile}/{bin}")),
             });
         }
     }
@@ -574,7 +608,7 @@ pub fn check_preflight_issues(root: &Path, profile: &str) -> Vec<PreflightIssue>
 }
 
 fn ensure_oodle_dll_in_profile(root: &Path, profile: &str) -> Result<(), String> {
-    let profile_dir = root.join("target").join(profile);
+    let (profile_dir, _) = resolve_binary_dir(root, profile);
     let target_dll = profile_dir.join("oodle-network-shared.dll");
     if target_dll.is_file() {
         return Ok(());
@@ -589,7 +623,7 @@ fn ensure_oodle_dll_in_profile(root: &Path, profile: &str) -> Result<(), String>
     Ok(())
 }
 
-fn world_binary_has_oodle(exe_path: &Path) -> bool {
+pub fn world_binary_has_oodle(exe_path: &Path) -> bool {
     let Ok(bytes) = fs::read(exe_path) else {
         return false;
     };
@@ -610,4 +644,41 @@ fn find_occupied_ports() -> Vec<u16> {
         }
     }
     occupied
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolves_prebuilt_flat_and_cargo_binary_layouts() {
+        let base = std::env::temp_dir().join(format!(
+            "foundation_studio_bin_layout_{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&base);
+
+        let flat = base.join("flat");
+        fs::create_dir_all(&flat).unwrap();
+        fs::write(flat.join("kawari-run.exe"), b"stub").unwrap();
+        assert_eq!(
+            resolve_binary_dir(&flat, "debug"),
+            (flat.clone(), "prebuilt".to_string())
+        );
+        assert_eq!(
+            resolve_binary_dir(&flat, "prebuilt"),
+            (flat.clone(), "prebuilt".to_string())
+        );
+
+        let cargo = base.join("cargo");
+        let cargo_dbg = cargo.join("target").join("debug");
+        fs::create_dir_all(&cargo_dbg).unwrap();
+        fs::write(cargo_dbg.join("kawari-run.exe"), b"stub").unwrap();
+        assert_eq!(
+            resolve_binary_dir(&cargo, "debug"),
+            (cargo_dbg, "debug".to_string())
+        );
+
+        let _ = fs::remove_dir_all(&base);
+    }
 }

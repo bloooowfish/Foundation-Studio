@@ -5,6 +5,7 @@ pub mod presets;
 pub mod rmp;
 pub mod server;
 pub mod settings;
+pub mod setup;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -51,6 +52,7 @@ pub struct AppState {
     pub preset_watcher: Arc<PresetWatcherManager>,
     pub rmp: Arc<RmpController>,
     pub server: Arc<FoundationServerController>,
+    pub setup: Arc<setup::SetupManager>,
     pub tray_menu: Arc<Mutex<Option<TrayMenuHandles>>>,
 }
 
@@ -529,6 +531,112 @@ fn clear_server_logs(state: State<'_, AppState>) {
 }
 
 #[tauri::command]
+fn get_setup_status_cmd(state: State<'_, AppState>, profile: Option<String>) -> setup::SetupStatus {
+    let settings = state.settings.lock().map(|g| g.clone()).unwrap_or_default();
+    let prof = server::normalize_profile(profile.as_deref().unwrap_or("debug"));
+    state.setup.inspect_status(&settings, &prof)
+}
+
+#[tauri::command]
+async fn install_runtime_components_cmd(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    components: Vec<String>,
+    use_managed_dir: bool,
+    profile: Option<String>,
+) -> Result<setup::SetupInstallReport, String> {
+    let touches_server = components.is_empty()
+        || components.iter().any(|c| {
+            matches!(
+                c.trim().to_ascii_lowercase().as_str(),
+                "foundation" | "oodle"
+            )
+        });
+    if touches_server && state.server.is_managed_running() {
+        return Err(
+            "Please stop the running Foundation server before updating server binaries or Oodle DLL."
+                .to_string(),
+        );
+    }
+
+    let touches_rmp = components.is_empty()
+        || components.iter().any(|c| {
+            matches!(
+                c.trim().to_ascii_lowercase().as_str(),
+                "rmp_bridge" | "ue4ss"
+            )
+        });
+    if touches_rmp && state.rmp.is_running() {
+        return Err(
+            "Please stop ReMakePlace Live Sync before updating rmp-bridge or RE-UE4SS.".to_string(),
+        );
+    }
+
+    let settings = state.settings.lock().map(|g| g.clone()).unwrap_or_default();
+    let prof = server::normalize_profile(profile.as_deref().unwrap_or("debug"));
+    let report = state
+        .setup
+        .install_components(&app, &settings, &components, use_managed_dir, &prof)
+        .await?;
+
+    if (use_managed_dir || settings.foundation_root.trim().is_empty())
+        && Path::new(&report.foundation_root).exists()
+        && let Ok(mut guard) = state.settings.lock()
+    {
+        guard.foundation_root = report.foundation_root.clone();
+        let _ = save_settings(&guard);
+    }
+
+    let _ = app.emit("foundation-server-changed", ());
+    Ok(report)
+}
+
+#[tauri::command]
+fn generate_foundation_config_cmd(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    foundation_root: Option<String>,
+    game_path: Option<String>,
+    overwrite: bool,
+) -> Result<String, String> {
+    let current = state.settings.lock().map(|g| g.clone()).unwrap_or_default();
+    let root_str = foundation_root
+        .map(|s| s.trim().trim_matches('"').to_string())
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            let cur = current.foundation_root.trim().trim_matches('"');
+            if cur.is_empty() {
+                None
+            } else {
+                Some(cur.to_string())
+            }
+        })
+        .unwrap_or_else(|| {
+            settings::managed_foundation_dir()
+                .to_string_lossy()
+                .into_owned()
+        });
+
+    let game_str = game_path
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| current.game_path.clone());
+
+    let root_path = PathBuf::from(&root_str);
+    let cfg_path = setup::generate_foundation_config(&root_path, &game_str, overwrite)?;
+
+    if current.foundation_root.trim().is_empty()
+        && let Ok(mut guard) = state.settings.lock()
+    {
+        guard.foundation_root = root_str;
+        let _ = save_settings(&guard);
+    }
+
+    let _ = app.emit("foundation-server-changed", ());
+    Ok(cfg_path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
 fn set_always_on_top_cmd(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -754,6 +862,7 @@ pub fn run() {
         preset_watcher: Arc::new(PresetWatcherManager::new()),
         rmp: Arc::new(RmpController::new()),
         server: Arc::new(FoundationServerController::new()),
+        setup: Arc::new(setup::SetupManager::new()),
         tray_menu: Arc::new(Mutex::new(None)),
     };
 
@@ -926,6 +1035,9 @@ pub fn run() {
             stop_foundation_server,
             get_server_logs,
             clear_server_logs,
+            get_setup_status_cmd,
+            install_runtime_components_cmd,
+            generate_foundation_config_cmd,
             set_always_on_top_cmd,
             update_global_shortcut_cmd,
             hide_to_tray_cmd,

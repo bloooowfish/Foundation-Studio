@@ -272,6 +272,109 @@
               <div class="panel">
                 <div class="panel-header">
                   <div>
+                    <h3 data-i18n="setup.title">Runtime Setup · Official Auto-Installer</h3>
+                    <span class="muted small-text" data-i18n="setup.subtitle">Automatically download &amp; verify required binaries from official GitHub Releases</span>
+                  </div>
+                  <span class="badge badge-muted" id="setupBadgeOverall" data-i18n="server.badge_checking">Checking</span>
+                </div>
+
+                <details id="setupDetails" open>
+                  <summary class="details-summary">
+                    <span id="setupSummaryPath" class="mono-inline"></span>
+                  </summary>
+
+                  <div class="setup-checklist">
+                    <div class="setup-row">
+                      <div class="setup-row-info">
+                        <strong data-i18n="setup.comp_foundation">Foundation Server</strong>
+                        <span class="muted small-text" data-i18n="setup.comp_foundation_src">bloooowfish/Foundation (Windows x64 Release)</span>
+                      </div>
+                      <div class="setup-row-actions">
+                        <span class="badge badge-muted" id="setupStateFoundation" data-i18n="server.badge_checking">Checking</span>
+                        <button class="btn btn-secondary btn-xs" data-setup-install="foundation" type="button" data-i18n="setup.btn_install_one">Install</button>
+                      </div>
+                    </div>
+
+                    <div class="setup-row">
+                      <div class="setup-row-info">
+                        <strong data-i18n="setup.comp_oodle">Oodle Network DLL</strong>
+                        <span class="muted small-text" data-i18n="setup.comp_oodle_src">WorkingRobot/OodleUE (official msvc-x64 release)</span>
+                      </div>
+                      <div class="setup-row-actions">
+                        <span class="badge badge-muted" id="setupStateOodle" data-i18n="server.badge_checking">Checking</span>
+                        <button class="btn btn-secondary btn-xs" data-setup-install="oodle" type="button" data-i18n="setup.btn_install_one">Install</button>
+                      </div>
+                    </div>
+
+                    <div class="setup-row">
+                      <div class="setup-row-info">
+                        <strong data-i18n="setup.comp_bridge">rmp-bridge Scripts &amp; Mods</strong>
+                        <span class="muted small-text" data-i18n="setup.comp_bridge_src">bloooowfish/rmp-bridge</span>
+                      </div>
+                      <div class="setup-row-actions">
+                        <span class="badge badge-muted" id="setupStateBridge" data-i18n="server.badge_checking">Checking</span>
+                        <button class="btn btn-secondary btn-xs" data-setup-install="rmp_bridge" type="button" data-i18n="setup.btn_install_one">Install</button>
+                      </div>
+                    </div>
+
+                    <div class="setup-row">
+                      <div class="setup-row-info">
+                        <strong data-i18n="setup.comp_ue4ss">RE-UE4SS v4.0.0</strong>
+                        <span class="muted small-text" data-i18n="setup.comp_ue4ss_src">UE4SS-RE/RE-UE4SS (MIT, SHA-256 verified)</span>
+                      </div>
+                      <div class="setup-row-actions">
+                        <span class="badge badge-muted" id="setupStateUe4ss" data-i18n="server.badge_checking">Checking</span>
+                        <button class="btn btn-secondary btn-xs" data-setup-install="ue4ss" type="button" data-i18n="setup.btn_install_one">Install</button>
+                      </div>
+                    </div>
+
+                    <div class="setup-row">
+                      <div class="setup-row-info">
+                        <strong data-i18n="setup.comp_config">Server Config (config.yaml)</strong>
+                        <span class="muted small-text" data-i18n="setup.comp_config_src">Generated from FFXIV client Game Path</span>
+                      </div>
+                      <div class="setup-row-actions">
+                        <span class="badge badge-muted" id="setupStateConfig" data-i18n="server.badge_checking">Checking</span>
+                        <button class="btn btn-secondary btn-xs" id="btnSetupGenerateConfig" type="button" data-i18n="setup.btn_generate_cfg">Generate</button>
+                      </div>
+                    </div>
+
+                    <div class="setup-row">
+                      <div class="setup-row-info">
+                        <strong data-i18n="setup.comp_rmp">ReMakePlace (Optional)</strong>
+                        <span class="muted small-text" data-i18n="setup.comp_rmp_src">RemakePlace/app (configure local path)</span>
+                      </div>
+                      <div class="setup-row-actions">
+                        <span class="badge badge-muted" id="setupStateRmp" data-i18n="server.badge_checking">Checking</span>
+                        <button class="btn btn-ghost btn-xs" id="btnOpenRemakePlaceRelease" type="button" data-i18n="setup.btn_open_release">Releases</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="inline-options" style="margin-top: 8px;">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="setupUseManagedDirCheck" />
+                      <span data-i18n="setup.use_managed_dir">Install into Foundation Studio managed runtime folder (%LocalAppData%)</span>
+                    </label>
+                  </div>
+
+                  <div class="setup-progress hidden" id="setupProgressWrap">
+                    <div class="setup-progress-track">
+                      <div class="setup-progress-fill" id="setupProgressBar"></div>
+                    </div>
+                    <div class="muted small-text" id="setupProgressText"></div>
+                  </div>
+
+                  <div class="button-row" style="margin-top: 8px;">
+                    <button class="btn btn-primary btn-sm" id="btnSetupInstallAll" type="button" data-i18n="setup.btn_install_all">Install / Repair Missing</button>
+                    <button class="btn btn-secondary btn-sm" id="btnSetupRefresh" type="button" data-i18n="setup.btn_refresh">Check</button>
+                  </div>
+                </details>
+              </div>
+
+              <div class="panel">
+                <div class="panel-header">
+                  <div>
                     <h3 data-i18n="server.title">Foundation Local Server Control</h3>
                     <span class="muted small-text" data-i18n="server.subtitle">Safely manage server processes via Windows Job Object (no orphaned processes)</span>
                   </div>
@@ -291,6 +394,7 @@
                     <select id="srvProfileSelect">
                       <option value="debug" selected data-i18n="server.profile_debug">debug (target\debug)</option>
                       <option value="release" data-i18n="server.profile_release">release (target\release)</option>
+                      <option value="prebuilt" data-i18n="server.profile_prebuilt">prebuilt (flat binaries)</option>
                     </select>
                   </label>
                 </div>

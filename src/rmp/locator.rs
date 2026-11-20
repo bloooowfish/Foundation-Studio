@@ -84,6 +84,11 @@ pub fn find_bridge_root_dir(start_dir: Option<&Path>) -> Option<PathBuf> {
         }
     }
 
+    let managed = crate::settings::managed_rmp_bridge_dir();
+    if is_valid_bridge_root(&managed) {
+        return Some(managed);
+    }
+
     let fallback = Path::new(DEFAULT_WORKSPACE_BRIDGE);
     if is_valid_bridge_root(fallback) {
         Some(fallback.to_path_buf())

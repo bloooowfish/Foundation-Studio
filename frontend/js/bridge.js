@@ -160,6 +160,19 @@
     stopFoundationServer: () => invoke('stop_foundation_server'),
     getServerLogs: () => invoke('get_server_logs'),
     clearServerLogs: () => invoke('clear_server_logs'),
+    getSetupStatus: (profile = null) => invoke('get_setup_status_cmd', { profile }),
+    installRuntimeComponents: (components, useManagedDir = true, profile = null) =>
+      invoke('install_runtime_components_cmd', {
+        components,
+        useManagedDir,
+        profile,
+      }),
+    generateFoundationConfig: (foundationRoot = null, gamePath = null, overwrite = false) =>
+      invoke('generate_foundation_config_cmd', {
+        foundationRoot,
+        gamePath,
+        overwrite,
+      }),
     setAlwaysOnTop: (pinned) => invoke('set_always_on_top_cmd', { pinned }),
     updateGlobalShortcut: (shortcut) => invoke('update_global_shortcut_cmd', { shortcut }),
     hideToTray: () => invoke('hide_to_tray_cmd'),
