@@ -177,6 +177,8 @@
     installRemakePlace: (targetDir, repair = false, profile = null) =>
       invoke('install_remakeplace_cmd', { targetDir, repair, profile }),
     checkRuntimeUpdates: (profile = null) => invoke('check_runtime_updates_cmd', { profile }),
+    updateRuntimeComponent: (component, profile = null) =>
+      invoke('update_runtime_component_cmd', { component, profile }),
     onLocalAccount: (cb) => listen('local-account', (ev) => cb(ev.payload)),
     onSetupProgress: (cb) => listen('setup-progress', (ev) => cb(ev.payload)),
     setAlwaysOnTop: (pinned) => invoke('set_always_on_top_cmd', { pinned }),

@@ -41,8 +41,8 @@
             <span class="caret">▾</span>
           </button>
           <div class="menu-pop hidden" id="sessionMenu" role="menu">
-            <button class="menu-item" id="menuOpenCurrentEstate" type="button" role="menuitem" data-i18n="topbar.menu_open_estate">Open current estate</button>
-            <button class="menu-item" id="btnUnlockAll" type="button" role="menuitem" data-i18n="topbar.unlock_all" data-i18n-title="topbar.unlock_all_title" title="Unlock all">Unlock All</button>
+            <button class="menu-item" id="menuOpenCurrentEstate" data-requires="session" type="button" role="menuitem" data-i18n="topbar.menu_open_estate">Open current estate</button>
+            <button class="menu-item" id="btnUnlockAll" data-requires="session" type="button" role="menuitem" data-i18n="topbar.unlock_all" data-i18n-title="topbar.unlock_all_title" title="Unlock all">Unlock All</button>
           </div>
         </div>
         <button class="btn btn-ghost btn-sm" id="btnRefreshAll" type="button" data-i18n="topbar.refresh">Refresh</button>
@@ -241,6 +241,14 @@
 
         <!-- ================= ESTATES (list + detail) ================= -->
         <section class="tab-view" id="view-estates">
+          <div class="offline-banner hidden js-offline-banner">
+            <div>
+              <strong data-i18n="offline.title">Not connected to the Foundation server</strong>
+              <span class="muted small-text" data-i18n="offline.desc">Start the server to load or change estates.</span>
+            </div>
+            <button class="btn btn-primary btn-sm js-go-home" type="button" data-i18n="offline.go_home">Start server on Home</button>
+          </div>
+          <div class="offline-guard js-offline-guard">
           <!-- List -->
           <div id="estatesListView">
             <div class="view-header">
@@ -357,7 +365,7 @@
               <div class="view-header-actions">
                 <button class="btn btn-primary btn-sm" id="detailBtnEnter" type="button" disabled data-i18n="sidebar.enter">Enter Interior</button>
                 <button class="btn btn-secondary btn-sm" id="detailBtnExit" type="button" disabled data-i18n="sidebar.exit">Go to Front Door</button>
-                <button class="btn btn-secondary btn-sm" id="detailBtnReload" type="button" disabled data-i18n="sidebar.reload">Force Reload</button>
+                <button class="btn btn-secondary btn-sm" id="detailBtnReload" data-requires="session" type="button" disabled data-i18n="sidebar.reload">Force Reload</button>
               </div>
             </div>
 
@@ -486,7 +494,7 @@
                       <option value="name" data-i18n="furniture.sort_name">By Name</option>
                       <option value="y" data-i18n="furniture.sort_y">By Height (Y)</option>
                     </select>
-                    <button class="btn btn-ghost btn-sm" id="btnRefreshFurniture" type="button" data-i18n="furniture.refresh">Refresh Furnishings</button>
+                    <button class="btn btn-ghost btn-sm" id="btnRefreshFurniture" type="button" data-i18n="topbar.refresh">Refresh</button>
                   </div>
 
                   <div class="table-wrap">
@@ -666,12 +674,13 @@
                     <button class="btn btn-secondary btn-sm" id="btnResetIndoor" type="button" data-i18n="env.btn_reset_in">Clear Indoor</button>
                     <button class="btn btn-secondary btn-sm" id="btnResetExterior" type="button" data-i18n="env.btn_reset_out">Clear Outdoor</button>
                     <button class="btn btn-danger btn-sm" id="btnResetAll" type="button" data-i18n="env.btn_reset_all">Clear All</button>
-                    <button class="btn btn-secondary btn-sm" id="btnEnvForceReload" type="button" data-i18n="env.btn_force_reload">Force Zone Reload</button>
+                    <button class="btn btn-secondary btn-sm" id="btnEnvForceReload" data-requires="session" type="button" data-i18n="env.btn_force_reload">Force Zone Reload</button>
                     <button class="btn btn-danger btn-sm" id="btnDeleteEstate" type="button" data-i18n="env.btn_delete">Delete Estate</button>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
           </div>
         </section>
 
@@ -736,14 +745,23 @@
                   <h3 id="presetDetailTitle" data-i18n="presets.detail_none_title">No Preset Selected</h3>
                   <span class="badge badge-accent" id="presetDetailBadge" data-i18n="presets.detail_none_badge">None</span>
                 </div>
-                <p class="preset-counts" id="presetDetailCounts" data-i18n="presets.detail_none_counts">Select a preset from the left list or drop a JSON file.</p>
-                <div class="fixture-summary" id="presetDetailFixtures"></div>
-                <div class="button-row">
+                <p class="muted small-text" id="presetDetailCounts" data-i18n="presets.detail_none_counts">Select a preset from the left list or drop a JSON file.</p>
+                <div class="preset-stats" id="presetDetailStats"></div>
+                <div class="fixture-groups" id="presetDetailFixtures"></div>
+                <div class="button-row" style="margin-top: 12px;">
                   <button class="btn btn-ghost btn-sm hidden" id="btnRevealPresetFile" type="button" data-i18n="presets.btn_reveal">Reveal in Explorer</button>
                 </div>
               </div>
 
-              <div class="panel">
+              <div class="offline-banner hidden js-offline-banner">
+                <div>
+                  <strong data-i18n="offline.title">Not connected to the Foundation server</strong>
+                  <span class="muted small-text" data-i18n="offline.presets_desc">You can browse presets, but applying them needs the server.</span>
+                </div>
+                <button class="btn btn-primary btn-sm js-go-home" type="button" data-i18n="offline.go_home">Start server on Home</button>
+              </div>
+
+              <div class="panel offline-guard js-offline-guard" id="presetApplyPanel">
                 <div class="panel-header">
                   <h3 data-i18n="presets.apply_title">Apply to an estate</h3>
                 </div>
@@ -752,7 +770,7 @@
                     <span data-i18n="presets.target_estate">Target Estate</span>
                     <select id="presetTargetSelect"></select>
                   </label>
-                  <button class="btn btn-secondary btn-sm" id="btnPresetSyncActive" type="button" data-i18n="presets.sync_active">Sync to Active In-Game</button>
+                  <button class="btn btn-secondary btn-sm" id="btnPresetSyncActive" data-requires="session" type="button" data-i18n="presets.sync_active">Sync to Active In-Game</button>
                   <button class="btn btn-secondary btn-sm hidden" id="btnPresetAutoMatch" type="button" data-i18n="presets.auto_match">Select Matching Size</button>
                 </div>
                 <div class="compat-banner" id="presetCompatBanner" data-i18n="presets.compat_select_preset">Select a preset or drop a JSON file to check size compatibility.</div>
@@ -809,6 +827,11 @@
             </div>
           </div>
 
+          <div class="setup-progress hidden js-setup-progress panel" id="setupProgressWrap">
+            <div class="setup-progress-track"><div class="setup-progress-fill js-setup-progress-bar" id="setupProgressBar"></div></div>
+            <div class="muted small-text js-setup-progress-text" id="setupProgressText"></div>
+          </div>
+
           <div class="panel">
             <div class="panel-header">
               <h3 data-i18n="runtime.group_required">Required (local play)</h3>
@@ -828,7 +851,7 @@
               <div class="setup-row">
                 <div class="setup-row-info">
                   <strong data-i18n="setup.comp_oodle">Oodle Network DLL</strong>
-                  <span class="muted small-text" data-i18n="setup.comp_oodle_src">WorkingRobot/OodleUE (official msvc-x64 release)</span>
+                  <span class="muted small-text" id="runtimeOodleInfo" data-i18n="setup.comp_oodle_src">WorkingRobot/OodleUE (official msvc-x64 release)</span>
                 </div>
                 <div class="setup-row-actions">
                   <span class="badge badge-muted" id="setupStateOodle" data-i18n="server.badge_checking">Checking</span>
@@ -855,7 +878,7 @@
             <div class="setup-checklist">
               <div class="setup-row">
                 <div class="setup-row-info">
-                  <strong data-i18n="setup.comp_rmp">ReMakePlace</strong>
+                  <strong data-i18n="settings.group_rmp">ReMakePlace</strong>
                   <span class="muted small-text mono-inline" id="runtimeRmpPath">-</span>
                   <span class="muted small-text" id="runtimeRmpInfo"></span>
                 </div>
@@ -869,7 +892,7 @@
               <div class="setup-row">
                 <div class="setup-row-info">
                   <strong data-i18n="setup.comp_bridge">rmp-bridge Scripts &amp; Mods</strong>
-                  <span class="muted small-text" data-i18n="setup.comp_bridge_src">bloooowfish/rmp-bridge</span>
+                  <span class="muted small-text" id="runtimeBridgeInfo" data-i18n="setup.comp_bridge_src">bloooowfish/rmp-bridge</span>
                 </div>
                 <div class="setup-row-actions">
                   <span class="badge badge-muted" id="setupStateBridge" data-i18n="server.badge_checking">Checking</span>
@@ -879,7 +902,7 @@
               <div class="setup-row">
                 <div class="setup-row-info">
                   <strong data-i18n="setup.comp_ue4ss">RE-UE4SS v4.0.0</strong>
-                  <span class="muted small-text" data-i18n="setup.comp_ue4ss_src">UE4SS-RE/RE-UE4SS (MIT, SHA-256 verified)</span>
+                  <span class="muted small-text" id="runtimeUe4ssInfo" data-i18n="setup.comp_ue4ss_src">UE4SS-RE/RE-UE4SS (MIT, SHA-256 verified)</span>
                 </div>
                 <div class="setup-row-actions">
                   <span class="badge badge-muted" id="setupStateUe4ss" data-i18n="server.badge_checking">Checking</span>
@@ -890,17 +913,43 @@
           </div>
 
           <div class="panel">
-            <div class="setup-progress hidden js-setup-progress" id="setupProgressWrap">
-              <div class="setup-progress-track"><div class="setup-progress-fill js-setup-progress-bar" id="setupProgressBar"></div></div>
-              <div class="muted small-text js-setup-progress-text" id="setupProgressText"></div>
+            <div class="panel-header">
+              <div>
+                <h3 data-i18n="runtime.location_title">Where downloaded files go</h3>
+                <span class="muted small-text" data-i18n="runtime.location_desc">This is not where the app itself is installed. It is the folder for the server and bridge files that Foundation Studio downloads.</span>
+              </div>
             </div>
-            <div class="inline-options">
-              <label class="checkbox-label">
-                <input type="checkbox" id="setupUseManagedDirCheck" />
-                <span data-i18n="setup.use_managed_dir">Install into Foundation Studio managed runtime folder (%LocalAppData%)</span>
-              </label>
+
+            <label class="radio-option">
+              <input type="radio" name="setupInstallTarget" id="setupUseManagedDirCheck" value="managed" />
+              <span class="radio-option-body">
+                <strong data-i18n="runtime.location_managed">Foundation Studio folder (recommended)</strong>
+                <span class="muted small-text" data-i18n="runtime.location_managed_desc">Studio keeps the files here and updates them for you.</span>
+                <span class="path-line"><span class="mono-inline" id="setupManagedPath">-</span></span>
+              </span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="setupInstallTarget" id="setupTargetCustom" value="custom" />
+              <span class="radio-option-body">
+                <strong data-i18n="runtime.location_custom">Folders set in Settings</strong>
+                <span class="muted small-text" data-i18n="runtime.location_custom_desc">Uses the Foundation and ReMakePlace folders from Settings. Developer source folders (git) are never overwritten.</span>
+              </span>
+            </label>
+
+            <div class="location-current">
+              <span class="muted small-text" data-i18n="runtime.location_current">Currently in use</span>
+              <div class="path-line">
+                <strong data-i18n="setup.comp_foundation">Foundation Server</strong>
+                <span class="badge badge-muted" id="setupFoundationSource">-</span>
+                <span class="mono-inline muted" id="setupSummaryPath"></span>
+              </div>
+              <div class="path-line">
+                <strong data-i18n="setup.comp_bridge">rmp-bridge Scripts &amp; Mods</strong>
+                <span class="badge badge-muted" id="setupBridgeSource">-</span>
+                <span class="mono-inline muted" id="setupBridgePath"></span>
+              </div>
+              <div class="muted small-text hidden" id="setupDevNote" data-i18n="runtime.dev_note">A developer source folder is in use. Update it with git, or switch to the Foundation Studio folder above to get prebuilt updates.</div>
             </div>
-            <div class="muted small-text"><span data-i18n="runtime.install_dir">Install location</span>: <span class="mono-inline" id="setupSummaryPath"></span></div>
           </div>
         </section>
 
@@ -1075,9 +1124,9 @@
             <summary class="details-summary" data-i18n="settings.group_dev">Developer tools</summary>
             <p class="muted small-text" data-i18n="settings.dev_desc">Test helpers. You normally do not need these.</p>
             <div class="button-row">
-              <button class="btn btn-secondary btn-sm" data-give-kit="indoor" type="button" data-i18n="topbar.kit_indoor">Indoor Kit</button>
-              <button class="btn btn-secondary btn-sm" data-give-kit="outdoor" type="button" data-i18n="topbar.kit_outdoor">Outdoor Kit</button>
-              <button class="btn btn-secondary btn-sm" data-give-kit="npc" type="button" data-i18n="topbar.kit_npc">NPC Kit</button>
+              <button class="btn btn-secondary btn-sm" data-give-kit="indoor" data-requires="session" type="button" data-i18n="topbar.kit_indoor">Indoor Kit</button>
+              <button class="btn btn-secondary btn-sm" data-give-kit="outdoor" data-requires="session" type="button" data-i18n="topbar.kit_outdoor">Outdoor Kit</button>
+              <button class="btn btn-secondary btn-sm" data-give-kit="npc" data-requires="session" type="button" data-i18n="topbar.kit_npc">NPC Kit</button>
             </div>
             <div class="field">
               <span data-i18n="launcher.endpoints_title">Resolved Endpoints &amp; Launcher Status</span>

@@ -1,5 +1,6 @@
 pub mod account;
 pub mod config_yaml;
+pub mod locations;
 pub mod remakeplace;
 pub mod updates;
 
@@ -36,6 +37,10 @@ pub const RMP_BRIDGE_LATEST_RELEASE_API: &str =
     "https://api.github.com/repos/bloooowfish/rmp-bridge/releases/latest";
 pub const RMP_BRIDGE_ARCHIVE_URL: &str =
     "https://github.com/bloooowfish/rmp-bridge/archive/refs/heads/main.zip";
+/// Append `<sha>.zip` for an exact-commit source archive.
+pub const RMP_BRIDGE_ARCHIVE_BASE: &str = "https://github.com/bloooowfish/rmp-bridge/archive/";
+pub const RMP_BRIDGE_MAIN_COMMIT_API: &str =
+    "https://api.github.com/repos/bloooowfish/rmp-bridge/commits/main";
 pub const UE4SS_VERSION: &str = "v4.0.0";
 pub const UE4SS_URL: &str =
     "https://github.com/UE4SS-RE/RE-UE4SS/releases/download/v4.0.0/UE4SS_v4.0.0.zip";
@@ -59,6 +64,10 @@ pub struct SetupStatus {
     pub active_foundation_dir: String,
     pub managed_bridge_dir: String,
     pub active_bridge_dir: String,
+    /// `managed` | `custom` | `dev` | `missing`.
+    pub foundation_source: String,
+    /// `managed` | `custom` | `dev` | `missing`.
+    pub bridge_source: String,
     pub foundation_installed: bool,
     pub foundation_layout: String,
     pub foundation_version: Option<String>,
@@ -162,15 +171,8 @@ impl SetupManager {
     pub fn inspect_status(&self, settings: &StudioSettings, profile: &str) -> SetupStatus {
         let managed_foundation = managed_foundation_dir();
         let managed_bridge = managed_rmp_bridge_dir();
+        let active_foundation_path = locations::active_foundation_root(&settings.foundation_root);
         let resolved_foundation = resolve_foundation_root(&settings.foundation_root);
-        let active_foundation_path = resolved_foundation.clone().unwrap_or_else(|| {
-            let trimmed = settings.foundation_root.trim().trim_matches('"');
-            if trimmed.is_empty() {
-                managed_foundation.clone()
-            } else {
-                PathBuf::from(trimmed)
-            }
-        });
 
         let resolved_bridge = find_bridge_root_dir(None);
         let active_bridge_path = resolved_bridge
@@ -201,15 +203,21 @@ impl SetupManager {
                 .join("oodle-network-shared.dll")
                 .is_file();
 
-        let rmp_bridge_installed = resolved_bridge.as_deref().is_some_and(|dir| {
-            dir.join("scripts").join("prepare-shadow.ps1").is_file()
-                && dir
-                    .join("mods")
-                    .join("FoundationBridge")
-                    .join("Scripts")
-                    .join("main.lua")
-                    .is_file()
-        });
+        let rmp_bridge_installed = resolved_bridge
+            .as_deref()
+            .is_some_and(locations::bridge_files_present);
+        let foundation_source = locations::classify_source(
+            Some(&active_foundation_path),
+            locations::CheckoutKind::Foundation,
+            has_core_bins,
+        )
+        .to_string();
+        let bridge_source = locations::classify_source(
+            resolved_bridge.as_deref(),
+            locations::CheckoutKind::Bridge,
+            rmp_bridge_installed,
+        )
+        .to_string();
 
         let ue4ss_dir = active_bridge_path.join("vendor").join("ue4ss-v4.0.0");
         let ue4ss_installed = ue4ss_dir.join("dwmapi.dll").is_file()
@@ -234,6 +242,8 @@ impl SetupManager {
             active_bridge_dir: resolved_bridge
                 .map(|p| p.to_string_lossy().into_owned())
                 .unwrap_or_default(),
+            foundation_source,
+            bridge_source,
             foundation_installed: has_core_bins,
             foundation_layout,
             foundation_version,
@@ -288,7 +298,9 @@ impl SetupManager {
         let mut errors = Vec::new();
 
         for comp in requested {
+            let guard = guard_dev_checkout_target(&comp, &foundation_target, &bridge_target);
             let res = match comp.as_str() {
+                _ if guard.is_err() => guard,
                 "foundation" => self.install_foundation(Some(app), &foundation_target).await,
                 "oodle" => {
                     self.install_oodle(Some(app), &foundation_target, profile)
@@ -426,10 +438,19 @@ impl SetupManager {
             None,
             "Extracting Foundation binaries & resources...".to_string(),
         );
-        let preserved = &["config.yaml", "world.db", "login.db", "oodle"];
+        let preserved = FOUNDATION_PRESERVED;
+        // Drop the previous version marker so an update records the new release tag
+        // (restored if extraction fails).
+        let previous_marker = read_version_marker(target_dir);
+        let _ = fs::remove_file(target_dir.join("version.txt"));
         let extract_res = extract_zip_to_dir(&tmp_zip, target_dir, false, preserved);
         let _ = fs::remove_file(&tmp_zip);
-        extract_res?;
+        if let Err(err) = extract_res {
+            if let Some(prev) = previous_marker {
+                let _ = fs::write(target_dir.join("version.txt"), prev);
+            }
+            return Err(err);
+        }
 
         if let Some(tag) = release.tag_name.as_deref()
             && !tag.trim().is_empty()
@@ -545,26 +566,41 @@ impl SetupManager {
             "Downloading bloooowfish/rmp-bridge scripts & mods...".to_string(),
         );
 
-        let (url, expected_sha, strip_top) = match self
+        let release = match self
             .fetch_latest_github_release(RMP_BRIDGE_LATEST_RELEASE_API)
             .await
         {
-            Ok(rel) => {
-                if let Some(asset) = rel
-                    .assets
-                    .iter()
-                    .find(|a| a.name.to_ascii_lowercase().ends_with(".zip"))
-                {
-                    (
+            Ok(rel) => rel.assets.iter().find_map(|asset| {
+                if asset.name.to_ascii_lowercase().ends_with(".zip") {
+                    Some((
                         asset.browser_download_url.clone(),
                         parse_sha256_digest(asset.digest.as_deref()),
-                        false,
-                    )
+                        rel.tag_name.clone().filter(|t| !t.trim().is_empty()),
+                    ))
                 } else {
-                    (RMP_BRIDGE_ARCHIVE_URL.to_string(), None, true)
+                    None
                 }
-            }
-            Err(_) => (RMP_BRIDGE_ARCHIVE_URL.to_string(), None, true),
+            }),
+            Err(_) => None,
+        };
+
+        // (url, sha256, strip_top, marker (ref, kind))
+        let (url, expected_sha, strip_top, marker) = match release {
+            Some((url, sha, tag)) => (
+                url,
+                sha,
+                false,
+                tag.map(|t| (t.trim().to_string(), locations::BRIDGE_KIND_RELEASE)),
+            ),
+            None => match self.fetch_main_commit_sha(RMP_BRIDGE_MAIN_COMMIT_API).await {
+                Ok(sha) => (
+                    format!("{RMP_BRIDGE_ARCHIVE_BASE}{sha}.zip"),
+                    None,
+                    true,
+                    Some((locations::short_sha(&sha), locations::BRIDGE_KIND_COMMIT)),
+                ),
+                Err(_) => (RMP_BRIDGE_ARCHIVE_URL.to_string(), None, true, None),
+            },
         };
 
         let tmp_zip = temp_download_path("rmp-bridge.zip");
@@ -585,10 +621,55 @@ impl SetupManager {
             None,
             "Extracting rmp-bridge files...".to_string(),
         );
-        let preserved = &["vendor", "runtime", "dumps"];
-        let res = extract_zip_to_dir(&tmp_zip, bridge_dir, strip_top, preserved);
+        let res = extract_zip_to_dir(&tmp_zip, bridge_dir, strip_top, BRIDGE_PRESERVED);
         let _ = fs::remove_file(&tmp_zip);
-        res
+        res?;
+
+        match marker {
+            Some((git_ref, kind)) => locations::write_bridge_marker(
+                bridge_dir,
+                &locations::BridgeMarker {
+                    git_ref,
+                    kind: kind.to_string(),
+                    installed_at: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0),
+                },
+            )?,
+            None => {
+                // Unknown revision (commit lookup failed): drop any stale marker.
+                let _ = fs::remove_file(bridge_dir.join(locations::BRIDGE_MARKER_FILE));
+            }
+        }
+        Ok(())
+    }
+
+    async fn fetch_main_commit_sha(&self, api_url: &str) -> Result<String, String> {
+        #[derive(Deserialize)]
+        struct CommitInfo {
+            sha: String,
+        }
+        let resp = self
+            .http
+            .get(api_url)
+            .header("Accept", "application/vnd.github+json")
+            .send()
+            .await
+            .map_err(|e| format!("Failed querying GitHub commit API ({api_url}): {e}"))?;
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(format!("GitHub API returned HTTP {status} for {api_url}"));
+        }
+        let info = resp
+            .json::<CommitInfo>()
+            .await
+            .map_err(|e| format!("Failed parsing GitHub commit metadata ({api_url}): {e}"))?;
+        let sha = info.sha.trim().to_ascii_lowercase();
+        if sha.len() < 7 || !sha.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(format!("Unexpected commit sha from {api_url}"));
+        }
+        Ok(sha)
     }
 
     async fn install_ue4ss(
@@ -929,7 +1010,7 @@ pub fn extract_zip_to_dir(
             let first_str = first.to_string_lossy();
             if preserved_top_names
                 .iter()
-                .any(|p| p.eq_ignore_ascii_case(&first_str))
+                .any(|p| preserved_name_matches(p, &first_str))
             {
                 let preserved_path = target_dir.join(first);
                 if preserved_path.exists() {
@@ -968,6 +1049,45 @@ fn is_clean_relative_path(path: &Path) -> bool {
         }
     }
     has_normal
+}
+
+/// Refuses archive extraction of `foundation` / `rmp_bridge` into a developer checkout.
+/// Oodle, RE-UE4SS and config remain allowed (they only touch gitignored paths).
+pub fn guard_dev_checkout_target(
+    component: &str,
+    foundation_target: &Path,
+    bridge_target: &Path,
+) -> Result<(), String> {
+    match component {
+        "foundation"
+            if locations::is_dev_checkout(
+                foundation_target,
+                locations::CheckoutKind::Foundation,
+            ) =>
+        {
+            Err(locations::dev_checkout_error(foundation_target))
+        }
+        "rmp_bridge"
+            if locations::is_dev_checkout(bridge_target, locations::CheckoutKind::Bridge) =>
+        {
+            Err(locations::dev_checkout_error(bridge_target))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// Top-level names kept on Foundation updates (`*` prefix = case-insensitive suffix match).
+pub const FOUNDATION_PRESERVED: &[&str] = &["config.yaml", "*.db", "oodle"];
+/// Top-level names kept on rmp-bridge updates.
+pub const BRIDGE_PRESERVED: &[&str] = &["vendor", "runtime", "dumps"];
+
+fn preserved_name_matches(pattern: &str, name: &str) -> bool {
+    match pattern.strip_prefix('*') {
+        Some(suffix) => name
+            .to_ascii_lowercase()
+            .ends_with(&suffix.to_ascii_lowercase()),
+        None => pattern.eq_ignore_ascii_case(name),
+    }
 }
 
 fn normalize_component_list(components: &[String]) -> Vec<String> {
@@ -1166,6 +1286,73 @@ mod tests {
             b"keep-me"
         );
 
+        let _ = fs::remove_file(&zip_path);
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn refuses_foundation_and_bridge_extraction_into_dev_checkouts() {
+        let base =
+            std::env::temp_dir().join(format!("foundation_setup_devguard_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        let dev_foundation = base.join("Foundation");
+        let dev_bridge = base.join("rmp-bridge");
+        let cargo_only = base.join("cargo-only");
+        let plain = base.join("plain");
+        fs::create_dir_all(dev_foundation.join(".git")).unwrap();
+        fs::create_dir_all(dev_bridge.join(".git")).unwrap();
+        fs::create_dir_all(&cargo_only).unwrap();
+        fs::write(cargo_only.join("Cargo.toml"), "[workspace]").unwrap();
+        fs::create_dir_all(&plain).unwrap();
+
+        let err = guard_dev_checkout_target("foundation", &dev_foundation, &plain).unwrap_err();
+        assert!(err.starts_with("dev_checkout: "));
+        assert!(err.contains("Foundation"));
+        assert!(guard_dev_checkout_target("foundation", &cargo_only, &plain).is_err());
+        let err = guard_dev_checkout_target("rmp_bridge", &plain, &dev_bridge).unwrap_err();
+        assert!(err.starts_with("dev_checkout: "));
+        // Cargo.toml alone does not mark a bridge checkout.
+        assert!(guard_dev_checkout_target("rmp_bridge", &plain, &cargo_only).is_ok());
+        // Oodle / UE4SS / config stay allowed in dev checkouts.
+        for comp in ["oodle", "ue4ss", "config"] {
+            assert!(guard_dev_checkout_target(comp, &dev_foundation, &dev_bridge).is_ok());
+        }
+        assert!(guard_dev_checkout_target("foundation", &plain, &plain).is_ok());
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn foundation_update_preserves_databases_config_and_oodle() {
+        let base =
+            std::env::temp_dir().join(format!("foundation_setup_preserve_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(base.join("oodle")).unwrap();
+        fs::write(base.join("config.yaml"), b"mine").unwrap();
+        fs::write(base.join("world.db"), b"world").unwrap();
+        fs::write(base.join("Custom.DB"), b"custom").unwrap();
+        fs::write(base.join("oodle").join("oodle-network-shared.dll"), b"dll").unwrap();
+
+        let zip_path = make_zip(&[
+            ("kawari-run.exe", b"new"),
+            ("config.yaml", b"theirs"),
+            ("world.db", b"empty"),
+            ("custom.db", b"empty"),
+            ("fresh.db", b"fresh"),
+            ("oodle/oodle-network-shared.dll", b"other"),
+        ]);
+        extract_zip_to_dir(&zip_path, &base, false, FOUNDATION_PRESERVED).unwrap();
+        assert_eq!(fs::read(base.join("kawari-run.exe")).unwrap(), b"new");
+        assert_eq!(fs::read(base.join("config.yaml")).unwrap(), b"mine");
+        assert_eq!(fs::read(base.join("world.db")).unwrap(), b"world");
+        assert_eq!(fs::read(base.join("Custom.DB")).unwrap(), b"custom");
+        assert_eq!(fs::read(base.join("fresh.db")).unwrap(), b"fresh");
+        assert_eq!(
+            fs::read(base.join("oodle").join("oodle-network-shared.dll")).unwrap(),
+            b"dll"
+        );
+        assert!(BRIDGE_PRESERVED.contains(&"vendor"));
+        assert!(BRIDGE_PRESERVED.contains(&"runtime"));
+        assert!(BRIDGE_PRESERVED.contains(&"dumps"));
         let _ = fs::remove_file(&zip_path);
         let _ = fs::remove_dir_all(&base);
     }

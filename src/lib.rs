@@ -644,6 +644,42 @@ async fn check_runtime_updates_cmd(
 }
 
 #[tauri::command]
+async fn update_runtime_component_cmd(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    component: String,
+    profile: Option<String>,
+) -> Result<setup::updates::ComponentUpdateReport, String> {
+    let comp = component.trim().to_ascii_lowercase();
+    match comp.as_str() {
+        "foundation" | "oodle" if state.server.is_managed_running() => {
+            return Err(
+                "Please stop the running Foundation server before updating server binaries or Oodle DLL."
+                    .to_string(),
+            );
+        }
+        "rmp_bridge" | "remakeplace" if state.rmp.is_running() => {
+            return Err(
+                "Please stop ReMakePlace Live Sync before updating rmp-bridge or ReMakePlace."
+                    .to_string(),
+            );
+        }
+        _ => {}
+    }
+
+    let settings = state.settings.lock().map(|g| g.clone()).unwrap_or_default();
+    let prof = server::normalize_profile(profile.as_deref().unwrap_or("debug"));
+    let report = state
+        .setup
+        .update_component(&app, &settings, &comp, &prof)
+        .await?;
+    if matches!(comp.as_str(), "foundation" | "oodle") {
+        let _ = app.emit("foundation-server-changed", ());
+    }
+    Ok(report)
+}
+
+#[tauri::command]
 fn stop_foundation_server(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     state.server.stop_server(Some(&app))
 }
@@ -1169,6 +1205,7 @@ pub fn run() {
             ensure_local_account_cmd,
             install_remakeplace_cmd,
             check_runtime_updates_cmd,
+            update_runtime_component_cmd,
             set_always_on_top_cmd,
             update_global_shortcut_cmd,
             hide_to_tray_cmd,

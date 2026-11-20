@@ -40,6 +40,7 @@
     logs: [],
     logCategory: 'all',
     sseConnected: false,
+    sseKnown: false,
   };
 
   const $ = (id) => document.getElementById(id);
@@ -80,6 +81,7 @@
       }
       renderSidebarSelected();
       syncEnvironmentButtonStates(getSelectedEstate());
+      applyAvailability();
     }
   }
 
@@ -924,14 +926,41 @@
   function setSseConnected(connected) {
     const wasConnected = state.sseConnected;
     state.sseConnected = connected;
+    state.sseKnown = true;
     const dot = $('sseDot');
     if (dot) {
       dot.className = `dot dot-mini ${connected ? 'dot-ok' : 'dot-warn'}`;
       dot.title = I18n.t(connected ? 'topbar.sse_connected' : 'topbar.sse_disconnected');
     }
+    applyAvailability();
     if (!wasConnected && connected) {
       refreshAll(state.selectedLandIdent, { forceSync: false, silentError: true });
     }
+  }
+
+  // Disable server/session dependent controls and explain why.
+  function applyAvailability() {
+    const offline = !!state.sseKnown && !state.sseConnected;
+    document.querySelectorAll('.js-offline-banner').forEach((el) => el.classList.toggle('hidden', !offline));
+    document.querySelectorAll('.js-offline-guard').forEach((el) => {
+      el.classList.toggle('is-offline', offline);
+      if (offline) el.setAttribute('aria-disabled', 'true');
+      else el.removeAttribute('aria-disabled');
+    });
+
+    const sessionOk = !offline && !!state.primarySession;
+    document.querySelectorAll('[data-requires="session"]').forEach((el) => {
+      if (el.dataset.busy === '1') return;
+      if (!sessionOk) {
+        el.disabled = true;
+        el.dataset.sessionLocked = '1';
+        el.title = I18n.t(offline ? 'offline.need_server' : 'offline.need_session');
+      } else if (el.dataset.sessionLocked === '1') {
+        delete el.dataset.sessionLocked;
+        el.disabled = false;
+        el.title = el.dataset.i18nTitle ? I18n.t(el.dataset.i18nTitle) : '';
+      }
+    });
   }
 
   function connectSse() {
@@ -1095,6 +1124,7 @@
     renderEnvironment({ forceSync });
     renderLogs();
     renderHome();
+    applyAvailability();
   }
 
   function followActiveEstate(landIdent) {
@@ -1186,6 +1216,7 @@
 
   function renderSessionHeader() {
     const sess = state.primarySession;
+    applyAvailability();
     if (!sess) {
       $('sessionPlayerText').textContent = I18n.t('topbar.session_waiting');
       $('sessionEstateText').textContent = I18n.t('topbar.session_preconfig');
@@ -1244,6 +1275,7 @@
       I18n.t('sidebar.stat_outdoor', { count: est.outdoor_count }),
     ].join(' · ');
     btnIds.forEach((id) => { $(id).disabled = $(id).dataset.busy === '1'; });
+    applyAvailability();
   }
 
   function getFilteredSortedEstates() {
@@ -1467,37 +1499,80 @@
       $('presetDetailTitle').textContent = I18n.t('presets.detail_none_title');
       $('presetDetailBadge').textContent = I18n.t('presets.detail_none_badge');
       $('presetDetailCounts').textContent = I18n.t('presets.detail_none_counts');
+      $('presetDetailCounts').classList.remove('hidden');
+      $('presetDetailStats').innerHTML = '';
       $('presetDetailFixtures').innerHTML = '';
     } else if (preset.parseError) {
       $('presetDetailTitle').textContent = preset.title;
       $('presetDetailBadge').textContent = I18n.t('presets.detail_parse_error');
       $('presetDetailCounts').textContent = preset.parseError;
+      $('presetDetailCounts').classList.remove('hidden');
+      $('presetDetailStats').innerHTML = '';
       $('presetDetailFixtures').innerHTML = '';
     } else {
       $('presetDetailTitle').textContent = preset.title;
       $('presetDetailBadge').textContent = `${getPresetSizeText(preset)} · ${getPresetStyleText(preset)}`;
-      const details = [];
-      if (preset.indoorDyed > 0) details.push(I18n.t('presets.detail_dyed', { count: preset.indoorDyed }));
-      if (preset.indoorMaterial > 0) details.push(I18n.t('presets.detail_material', { count: preset.indoorMaterial }));
-      const inExtra = details.length ? ` (${details.join(', ')})` : '';
-      const outExtra = preset.outdoorDyed > 0
-        ? ` (${I18n.t('presets.detail_dyed', { count: preset.outdoorDyed })})`
-        : '';
-      $('presetDetailCounts').textContent = I18n.t('presets.detail_counts', {
-        indoor: preset.indoorCount,
-        inExtra,
-        outdoor: preset.outdoorCount,
-        outExtra,
-      });
-      const inList = (preset.interiorFixtures || []).map((f) => I18n.formatFixture(f)).filter(Boolean);
-      const outList = (preset.exteriorFixtures || []).map((f) => I18n.formatFixture(f)).filter(Boolean);
-      const inFix = inList.length ? inList.join(' / ') : I18n.t('presets.detail_none');
-      const outFix = outList.length ? outList.join(' / ') : I18n.t('presets.detail_none');
-      $('presetDetailFixtures').innerHTML = `
-        <div><strong>${esc(I18n.t('presets.detail_int_fixtures'))}</strong> ${esc(inFix)}</div>
-        <div><strong>${esc(I18n.t('presets.detail_ext_fixtures'))}</strong> ${esc(outFix)}</div>
-      `;
+      $('presetDetailCounts').classList.add('hidden');
+      const stat = (text, cls = 'badge-muted') => `<span class="badge ${cls}">${esc(text)}</span>`;
+      const stats = [stat(I18n.t('sidebar.stat_indoor', { count: preset.indoorCount }), 'badge-accent')];
+      if (preset.indoorDyed > 0) stats.push(stat(I18n.t('presets.detail_dyed', { count: preset.indoorDyed })));
+      if (preset.indoorMaterial > 0) stats.push(stat(I18n.t('presets.detail_material', { count: preset.indoorMaterial })));
+      stats.push(stat(I18n.t('sidebar.stat_outdoor', { count: preset.outdoorCount }), 'badge-accent'));
+      if (preset.outdoorDyed > 0) stats.push(stat(I18n.t('presets.detail_dyed', { count: preset.outdoorDyed })));
+      $('presetDetailStats').innerHTML = stats.join('');
+      $('presetDetailFixtures').innerHTML = [
+        renderFixtureGroup(I18n.t('presets.detail_int_fixtures'), preset.interiorFixtures),
+        renderFixtureGroup(I18n.t('presets.detail_ext_fixtures'), preset.exteriorFixtures),
+      ].join('');
     }
+  }
+
+  function normalizeFixtureEntry(entry) {
+    if (!entry) return null;
+    if (typeof entry === 'string') {
+      const m = entry.match(/^([^:]+):\s*(.+)$/);
+      if (!m) return { kind: '', name: entry.trim(), color: '' };
+      const key = I18n.mapFixtureKindToKey ? I18n.mapFixtureKindToKey(m[1]) : null;
+      return { kind: key ? I18n.t(`game.fixtures.${key}`) : m[1].trim(), name: m[2].trim(), color: '' };
+    }
+    const key = entry.kindKey || (I18n.mapFixtureKindToKey ? I18n.mapFixtureKindToKey(entry.rawKind || entry.type) : null);
+    return {
+      kind: key ? I18n.t(`game.fixtures.${key}`) : String(entry.rawKind || entry.type || '').trim(),
+      name: String(entry.name || '').trim(),
+      color: String(entry.color || '').trim(),
+    };
+  }
+
+  // Groups fixtures by kind and collapses duplicates, e.g. "Ceiling Lamp x2".
+  function renderFixtureGroup(title, list) {
+    const cleanTitle = String(title || '').replace(/[:：]\s*$/, '');
+    const groups = new Map();
+    for (const raw of list || []) {
+      const f = normalizeFixtureEntry(raw);
+      if (!f || !f.name) continue;
+      if (!groups.has(f.kind)) groups.set(f.kind, new Map());
+      const names = groups.get(f.kind);
+      const key = `${f.name}|${f.color}`;
+      const prev = names.get(key);
+      if (prev) prev.count += 1;
+      else names.set(key, { name: f.name, color: f.color, count: 1 });
+    }
+    let body;
+    if (groups.size === 0) {
+      body = `<div class="fixture-empty">${esc(I18n.t('presets.detail_none'))}</div>`;
+    } else {
+      const rows = [...groups.entries()].map(([kind, names]) => {
+        const chips = [...names.values()].map((n) => {
+          const hex = n.color.replace(/^#/, '').slice(0, 6);
+          const swatch = /^[0-9a-fA-F]{6}$/.test(hex) ? `<span class="swatch" style="background:#${hex}"></span>` : '';
+          const count = n.count > 1 ? ` <em>×${n.count}</em>` : '';
+          return `<span class="fixture-chip">${swatch}${esc(n.name)}${count}</span>`;
+        }).join('');
+        return `<span class="fixture-kind">${esc(kind || '-')}</span><span class="fixture-values">${chips}</span>`;
+      }).join('');
+      body = `<div class="fixture-grid">${rows}</div>`;
+    }
+    return `<div><div class="fixture-group-title">${esc(cleanTitle)}</div>${body}</div>`;
   }
 
   function getActiveFurnitureList() {
@@ -1650,6 +1725,7 @@
         el.disabled = el.dataset.busy === '1';
       }
     });
+    applyAvailability();
   }
 
   function renderEnvironment({ forceSync = false } = {}) {
@@ -2138,6 +2214,11 @@
     $('prefFollowGameCheck').addEventListener('change', (ev) => {
       state.followGame = !!ev.target.checked;
       savePrefs();
+    });
+
+    // Offline banners
+    document.querySelectorAll('.js-go-home').forEach((btn) => {
+      btn.addEventListener('click', () => switchTab('home'));
     });
 
     // Logs sub-tabs
@@ -2840,6 +2921,10 @@
     bindEvents();
     switchTab(state.activeTab);
     connectSse();
+    setTimeout(() => {
+      state.sseKnown = true;
+      applyAvailability();
+    }, 3000);
     connectWatcherAndDropEvents();
     refreshLocalPresets();
     refreshAll(null, { forceSync: true, silentError: true });

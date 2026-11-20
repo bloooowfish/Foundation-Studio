@@ -370,49 +370,115 @@
     });
   }
 
+  const COMPONENT_UI = {
+    foundation: { item: 'foundation', info: 'runtimeFoundationInfo', srcKey: 'setup.comp_foundation_src', nameKey: 'setup.comp_foundation' },
+    oodle: { item: 'oodle', info: 'runtimeOodleInfo', srcKey: 'setup.comp_oodle_src', nameKey: 'setup.comp_oodle' },
+    rmp_bridge: { item: 'rmpBridge', info: 'runtimeBridgeInfo', srcKey: 'setup.comp_bridge_src', nameKey: 'setup.comp_bridge' },
+    ue4ss: { item: 'ue4ss', info: 'runtimeUe4ssInfo', srcKey: 'setup.comp_ue4ss_src', nameKey: 'setup.comp_ue4ss' },
+  };
+
+  function componentInstalled(comp) {
+    const st = setupStatus || {};
+    if (comp === 'foundation') return !!st.foundationInstalled;
+    if (comp === 'oodle') return !!st.oodleInstalled;
+    if (comp === 'rmp_bridge') return !!st.rmpBridgeInstalled;
+    if (comp === 'ue4ss') return !!st.ue4ssInstalled;
+    return false;
+  }
+
+  function describeItem(item, fallbackKey) {
+    if (!item) return I18n.t(fallbackKey);
+    if (item.source === 'dev') return I18n.t('runtime.source_dev_info');
+    if (item.pinned && item.installed) return I18n.t('runtime.pinned_version', { version: item.installed });
+    if (item.updateAvailable) {
+      return I18n.t('runtime.update_available', { installed: item.installed || '-', latest: item.latest });
+    }
+    if (item.installed && item.latest) return I18n.t('runtime.up_to_date', { version: item.installed });
+    if (item.error) return I18n.t('runtime.check_error');
+    if (item.latest) return I18n.t('runtime.latest_version', { version: item.latest });
+    return I18n.t(fallbackKey);
+  }
+
   function renderUpdateInfo() {
-    const fInfo = $('runtimeFoundationInfo');
+    const busy = rmpInstallBusy || !!setupStatus?.busy;
+    Object.entries(COMPONENT_UI).forEach(([comp, ui]) => {
+      const item = updateInfo?.[ui.item];
+      const infoEl = $(ui.info);
+      if (infoEl) infoEl.textContent = describeItem(item, ui.srcKey);
+      const btn = document.querySelector(`[data-setup-install="${comp}"]`);
+      if (!btn) return;
+      let mode = 'install';
+      let labelKey = 'setup.btn_install_one';
+      let cls = 'btn btn-secondary btn-xs';
+      let locked = false;
+      let title = '';
+      if (componentInstalled(comp)) {
+        if (item?.source === 'dev') {
+          labelKey = 'runtime.btn_reinstall';
+          cls = 'btn btn-ghost btn-xs';
+          locked = true;
+          title = I18n.t('runtime.dev_locked');
+        } else if (item?.canUpdate) {
+          mode = 'update';
+          labelKey = 'runtime.btn_update';
+          cls = 'btn btn-primary btn-xs';
+        } else {
+          labelKey = 'runtime.btn_reinstall';
+          cls = 'btn btn-ghost btn-xs';
+        }
+      }
+      btn.dataset.mode = mode;
+      btn.className = cls;
+      btn.textContent = I18n.t(labelKey);
+      btn.title = title;
+      btn.disabled = busy || locked;
+    });
+
     const rInfo = $('runtimeRmpInfo');
-    const f = updateInfo?.foundation;
     const r = updateInfo?.remakeplace;
-    if (fInfo) {
-      if (f?.updateAvailable) {
-        fInfo.textContent = I18n.t('runtime.update_available', { installed: f.installed || '-', latest: f.latest });
-      } else if (f?.latest && f?.installed) {
-        fInfo.textContent = I18n.t('runtime.up_to_date', { version: f.installed });
-      } else {
-        fInfo.textContent = I18n.t('setup.comp_foundation_src');
-      }
-    }
-    if (rInfo) {
-      if (r?.updateAvailable && r?.installed) {
-        rInfo.textContent = I18n.t('runtime.update_available', { installed: r.installed, latest: r.latest });
-      } else if (r?.installed && r?.latest) {
-        rInfo.textContent = I18n.t('runtime.up_to_date', { version: r.installed });
-      } else if (r?.latest) {
-        rInfo.textContent = I18n.t('runtime.latest_version', { version: r.latest });
-      } else {
-        rInfo.textContent = '';
-      }
-    }
+    if (rInfo) rInfo.textContent = r ? describeItem(r, 'setup.comp_rmp_src') : '';
     const rmpBtn = $('btnRmpInstall');
     if (rmpBtn) {
       const installed = !!setupStatus?.remakeplaceValid;
+      const canUpdate = installed && (r ? (r.canUpdate ?? r.updateAvailable) : false);
       rmpBtn.textContent = I18n.t(installed ? 'runtime.rmp_update' : 'runtime.rmp_install');
-      rmpBtn.disabled = rmpInstallBusy || !!setupStatus?.busy || (installed && r && r.updateAvailable === false && !!r.installed);
+      rmpBtn.className = installed && !canUpdate ? 'btn btn-ghost btn-xs' : 'btn btn-primary btn-xs';
+      rmpBtn.disabled = busy || (installed && !canUpdate);
     }
     const repairBtn = $('btnRmpRepair');
-    if (repairBtn) repairBtn.disabled = rmpInstallBusy || !!setupStatus?.busy || !setupStatus?.remakeplaceValid;
+    if (repairBtn) repairBtn.disabled = busy || !setupStatus?.remakeplaceValid;
     renderNavRuntimeBadge();
   }
 
   function renderNavRuntimeBadge() {
     const badge = $('navBadgeRuntime');
     if (!badge) return;
-    const needsAttention = (setupStatus && !requiredReady(setupStatus))
-      || !!updateInfo?.foundation?.updateAvailable
-      || !!(updateInfo?.remakeplace?.updateAvailable && updateInfo?.remakeplace?.installed);
+    const anyUpdate = updateInfo
+      && ['foundation', 'oodle', 'rmpBridge', 'remakeplace'].some((k) => {
+        const it = updateInfo[k];
+        return !!(it && (it.canUpdate ?? (it.updateAvailable && it.installed)));
+      });
+    const needsAttention = (setupStatus && !requiredReady(setupStatus)) || !!anyUpdate;
     badge.classList.toggle('hidden', !needsAttention);
+  }
+
+  function sourceLabel(source) {
+    const known = ['managed', 'custom', 'dev', 'missing'];
+    return I18n.t(`runtime.source_${known.includes(source) ? source : 'missing'}`);
+  }
+
+  function renderInstallLocation() {
+    const st = setupStatus;
+    if (!st) return;
+    const managedRoot = (st.managedFoundationDir || '').replace(/[\\/]foundation[\\/]?$/i, '');
+    $('setupManagedPath').textContent = managedRoot || st.managedFoundationDir || '-';
+    $('setupSummaryPath').textContent = st.activeFoundationDir || '-';
+    $('setupBridgePath').textContent = st.activeBridgeDir || '-';
+    const fSrc = st.foundationSource || (st.foundationInstalled ? 'custom' : 'missing');
+    const bSrc = st.bridgeSource || (st.rmpBridgeInstalled ? 'custom' : 'missing');
+    setStatusBadge($('setupFoundationSource'), fSrc === 'managed' ? 'badge-success' : fSrc === 'dev' ? 'badge-accent' : 'badge-muted', sourceLabel(fSrc));
+    setStatusBadge($('setupBridgeSource'), bSrc === 'managed' ? 'badge-success' : bSrc === 'dev' ? 'badge-accent' : 'badge-muted', sourceLabel(bSrc));
+    $('setupDevNote').classList.toggle('hidden', fSrc !== 'dev' && bSrc !== 'dev');
   }
 
   function renderSetupStatus(st) {
@@ -480,25 +546,26 @@
       setStatusBadge($('setupBadgeOverall'), 'badge-warn', I18n.t('setup.badge_incomplete'));
     }
 
-    const summaryPath = $('setupSummaryPath');
-    if (summaryPath) {
-      summaryPath.textContent = setupStatus.activeFoundationDir || setupStatus.managedFoundationDir || '';
-    }
-
     if (!setupUiInitialized) {
       setupUiInitialized = true;
-      const managedChk = $('setupUseManagedDirCheck');
-      if (managedChk) {
+      const managedRadio = $('setupUseManagedDirCheck');
+      const customRadio = $('setupTargetCustom');
+      if (managedRadio && customRadio) {
         const activeLow = (setupStatus.activeFoundationDir || '').toLowerCase();
         const managedLow = (setupStatus.managedFoundationDir || '').toLowerCase();
-        managedChk.checked = !setupStatus.foundationInstalled || (!!activeLow && activeLow === managedLow);
+        const useManaged = !setupStatus.foundationInstalled
+          || setupStatus.foundationSource === 'dev'
+          || (!!activeLow && activeLow === managedLow);
+        managedRadio.checked = useManaged;
+        customRadio.checked = !useManaged;
       }
     }
 
-    document.querySelectorAll('[data-setup-install], #btnSetupInstallAll, #btnSetupGenerateConfig').forEach((btn) => {
+    document.querySelectorAll('#btnSetupInstallAll, #btnSetupGenerateConfig').forEach((btn) => {
       btn.disabled = !!setupStatus.busy || rmpInstallBusy;
     });
 
+    renderInstallLocation();
     renderOnboarding();
     renderUpdateInfo();
   }
@@ -564,8 +631,9 @@
         Studio?.toast(msg);
       }
       if (report.errors?.length) {
-        const errMsg = I18n.t('setup.install_partial_err', { error: report.errors.join(' | ') });
-        appendLauncherLog(`ERROR (Setup): ${errMsg}`);
+        const friendly = report.errors.map((e) => (String(e).includes('dev_checkout:') ? I18n.t('runtime.err_dev_checkout') : e));
+        const errMsg = I18n.t('setup.install_partial_err', { error: friendly.join(' | ') });
+        appendLauncherLog(`ERROR (Setup): ${report.errors.join(' | ')}`);
         Studio?.toast(errMsg, true);
       }
     } catch (err) {
@@ -574,6 +642,34 @@
     } finally {
       showSetupProgress({ percent: 100 });
       await refreshSetupStatus();
+      refreshUpdates({ quiet: true });
+    }
+  }
+
+  async function runComponentUpdate(component) {
+    if (typeof Bridge.updateRuntimeComponent !== 'function') {
+      await runSetupInstall([component]);
+      return;
+    }
+    const name = I18n.t(COMPONENT_UI[component]?.nameKey || 'runtime.title');
+    showSetupProgress({ percent: 5, text: I18n.t('runtime.updating', { component: name }) });
+    try {
+      await persistFormSettings({ quiet: true });
+      const res = await Bridge.updateRuntimeComponent(component, $('srvProfileSelect')?.value || null);
+      if (res?.status) renderSetupStatus(res.status);
+      await reloadPathFieldsFromSettings();
+      const msg = I18n.t('runtime.updated', { component: name, version: res?.current || '' });
+      appendLauncherLog(msg);
+      Studio?.toast(msg);
+    } catch (err) {
+      const text = String(err.message || err).includes('dev_checkout:') ? I18n.t('runtime.err_dev_checkout') : err.message;
+      appendLauncherLog(`ERROR (Update ${component}): ${err.message}`);
+      Studio?.toast(I18n.t('runtime.update_fail', { component: name, error: text }), true);
+    } finally {
+      showSetupProgress({ percent: 100 });
+      await refreshSetupStatus();
+      await refreshServerStatus();
+      refreshUpdates({ quiet: true });
     }
   }
 
@@ -988,7 +1084,11 @@
     });
 
     document.querySelectorAll('[data-setup-install]').forEach((btn) => {
-      btn.addEventListener('click', () => runSetupInstall([btn.dataset.setupInstall]));
+      btn.addEventListener('click', () => {
+        const comp = btn.dataset.setupInstall;
+        if (btn.dataset.mode === 'update') runComponentUpdate(comp);
+        else runSetupInstall([comp]);
+      });
     });
 
     $('btnSetupGenerateConfig')?.addEventListener('click', async () => {
