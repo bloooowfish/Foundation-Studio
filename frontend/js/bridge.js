@@ -173,6 +173,12 @@
         gamePath,
         overwrite,
       }),
+    ensureLocalAccount: (force = false) => invoke('ensure_local_account_cmd', { force }),
+    installRemakePlace: (targetDir, repair = false, profile = null) =>
+      invoke('install_remakeplace_cmd', { targetDir, repair, profile }),
+    checkRuntimeUpdates: (profile = null) => invoke('check_runtime_updates_cmd', { profile }),
+    onLocalAccount: (cb) => listen('local-account', (ev) => cb(ev.payload)),
+    onSetupProgress: (cb) => listen('setup-progress', (ev) => cb(ev.payload)),
     setAlwaysOnTop: (pinned) => invoke('set_always_on_top_cmd', { pinned }),
     updateGlobalShortcut: (shortcut) => invoke('update_global_shortcut_cmd', { shortcut }),
     hideToTray: () => invoke('hide_to_tray_cmd'),

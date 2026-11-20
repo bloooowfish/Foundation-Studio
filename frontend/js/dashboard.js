@@ -7,7 +7,10 @@
   const I18n = window.FoundationI18n;
 
   const state = {
-    activeTab: 'launcher',
+    activeTab: 'home',
+    estateView: 'list',
+    estateSubTab: 'overview',
+    followGame: true,
     viewMode: 'cards',
     favoritesOnly: false,
     favorites: {},
@@ -80,13 +83,22 @@
     }
   }
 
+  const KNOWN_TABS = ['home', 'estates', 'presets', 'runtime', 'settings', 'logs'];
+  const LEGACY_TAB_MAP = { launcher: 'home', furniture: 'estates', environment: 'estates' };
+  const SUBTABS = ['overview', 'decorate', 'furniture', 'environment', 'history'];
+
   function loadPrefs() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
-        if (parsed.activeTab) state.activeTab = parsed.activeTab;
+        if (parsed.activeTab) {
+          const mapped = LEGACY_TAB_MAP[parsed.activeTab] || parsed.activeTab;
+          if (KNOWN_TABS.includes(mapped)) state.activeTab = mapped;
+        }
+        if (SUBTABS.includes(parsed.estateSubTab)) state.estateSubTab = parsed.estateSubTab;
+        if (typeof parsed.followGame === 'boolean') state.followGame = parsed.followGame;
         if (parsed.viewMode === 'table' || parsed.viewMode === 'cards') state.viewMode = parsed.viewMode;
         if (parsed.favorites && typeof parsed.favorites === 'object') state.favorites = parsed.favorites;
         if (parsed.memos && typeof parsed.memos === 'object') state.memos = parsed.memos;
@@ -100,6 +112,8 @@
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         activeTab: state.activeTab,
+        estateSubTab: state.estateSubTab,
+        followGame: state.followGame,
         viewMode: state.viewMode,
         favorites: state.favorites,
         memos: state.memos,
@@ -595,21 +609,74 @@
     $('presetPreviewReport').classList.add('hidden');
   }
 
+  function isDetailOpen() {
+    return state.activeTab === 'estates' && state.estateView === 'detail';
+  }
+
+  function isFurnitureView() {
+    return isDetailOpen() && state.estateSubTab === 'furniture';
+  }
+
+  function isEnvView() {
+    return isDetailOpen() && ['overview', 'environment', 'history'].includes(state.estateSubTab);
+  }
+
+  function loadActiveSubview({ forceSync = false } = {}) {
+    if (!state.selectedLandIdent) return;
+    if (isFurnitureView()) {
+      refreshBridgeSnapshot({ forceSyncDraft: forceSync || !state.transformDirty });
+    } else if (isEnvView()) {
+      refreshEstateDetail({ forceSync });
+    }
+  }
+
+  function applyEstateViewVisibility() {
+    const detail = state.estateView === 'detail' && !!getSelectedEstate();
+    if (!detail) state.estateView = 'list';
+    $('estatesListView').classList.toggle('hidden', detail);
+    $('estateDetailView').classList.toggle('hidden', !detail);
+    document.querySelectorAll('#detailSubtabs [data-subtab]').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.subtab === state.estateSubTab);
+    });
+    document.querySelectorAll('#estateDetailView .subview').forEach((view) => {
+      view.classList.toggle('active', view.id === `subview-${state.estateSubTab}`);
+    });
+  }
+
   function switchTab(tabName) {
-    state.activeTab = tabName;
+    const mapped = LEGACY_TAB_MAP[tabName] || tabName;
+    state.activeTab = KNOWN_TABS.includes(mapped) ? mapped : 'home';
     savePrefs();
     document.querySelectorAll('.nav-item').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.tab === tabName);
+      btn.classList.toggle('active', btn.dataset.tab === state.activeTab);
     });
     document.querySelectorAll('.tab-view').forEach((view) => {
-      view.classList.toggle('active', view.id === `view-${tabName}`);
+      view.classList.toggle('active', view.id === `view-${state.activeTab}`);
     });
-
-    if (tabName === 'furniture' && state.selectedLandIdent) {
-      refreshBridgeSnapshot({ forceSyncDraft: !state.transformDirty });
-    } else if (tabName === 'environment' && state.selectedLandIdent) {
-      refreshEstateDetail();
+    if (state.activeTab === 'estates') {
+      applyEstateViewVisibility();
+      loadActiveSubview();
     }
+  }
+
+  function switchSubTab(subName) {
+    if (!SUBTABS.includes(subName)) return;
+    state.estateSubTab = subName;
+    savePrefs();
+    applyEstateViewVisibility();
+    loadActiveSubview();
+  }
+
+  async function openEstateDetail(landIdent, subName = null) {
+    if (subName && SUBTABS.includes(subName)) state.estateSubTab = subName;
+    state.estateView = 'detail';
+    await selectEstate(landIdent, false);
+    switchTab('estates');
+  }
+
+  function showEstateList() {
+    state.estateView = 'list';
+    applyEstateViewVisibility();
   }
 
   async function selectEstate(landIdent, loadSubViews = true) {
@@ -618,15 +685,13 @@
     }
     state.selectedLandIdent = landIdent;
     renderAll();
+    if (state.activeTab === 'estates') applyEstateViewVisibility();
 
     if (!landIdent || !loadSubViews) return;
-    if (state.activeTab === 'furniture') {
+    if (isFurnitureView()) {
       await refreshBridgeSnapshot({ forceSyncDraft: true });
-    } else if (state.activeTab === 'environment') {
-      await refreshEstateDetail({ forceSync: true });
     } else {
-      // Load detail silently so snapshot count stays fresh in sidebar badge.
-      await refreshEstateDetail({ silent: true, forceSync: true });
+      await refreshEstateDetail({ silent: !isEnvView(), forceSync: true });
     }
   }
 
@@ -679,9 +744,10 @@
       }
 
       renderAll({ forceSync });
+      if (state.activeTab === 'estates') applyEstateViewVisibility();
 
       if (state.selectedLandIdent) {
-        if (state.activeTab === 'furniture') {
+        if (isFurnitureView()) {
           await refreshBridgeSnapshot({ forceSyncDraft: forceSync || !state.transformDirty });
         } else {
           await refreshEstateDetail({ silent: true, forceSync });
@@ -715,9 +781,10 @@
         clearSelectionTransientState();
       }
       renderAll();
+      if (state.activeTab === 'estates') applyEstateViewVisibility();
       if (state.selectedLandIdent) {
-        if (state.activeTab === 'furniture') await refreshBridgeSnapshot({ forceSyncDraft: false });
-        if (state.activeTab === 'environment') await refreshEstateDetail({ silent: true, forceSync: false });
+        if (isFurnitureView()) await refreshBridgeSnapshot({ forceSyncDraft: false });
+        else await refreshEstateDetail({ silent: true, forceSync: false });
       }
     } catch (err) {
       toast(I18n.t('estates.refresh_fail', { error: err.message }), true);
@@ -809,14 +876,21 @@
       state.primarySession = evt.session || null;
       renderSessionHeader();
       renderEstates();
+      renderHome();
       if (evt.message) pushLog(evt);
       return;
     }
 
     if (evt.session) {
+      const prevActive = state.primarySession?.active_estate?.land_ident ?? null;
       state.primarySession = evt.session;
       renderSessionHeader();
       renderEstates();
+      renderHome();
+      const nextActive = evt.session.active_estate?.land_ident ?? null;
+      if (state.followGame && nextActive !== null && nextActive !== prevActive) {
+        followActiveEstate(nextActive);
+      }
     }
     if (evt.message && (evt.kind !== 'furniture_moved' || evt.source)) {
       pushLog(evt);
@@ -850,10 +924,11 @@
   function setSseConnected(connected) {
     const wasConnected = state.sseConnected;
     state.sseConnected = connected;
-    $('sseDot').className = `dot ${connected ? 'dot-ok' : 'dot-warn'}`;
-    $('sseStatusText').textContent = I18n.t(
-      connected ? 'topbar.sse_connected' : 'topbar.sse_disconnected'
-    );
+    const dot = $('sseDot');
+    if (dot) {
+      dot.className = `dot dot-mini ${connected ? 'dot-ok' : 'dot-warn'}`;
+      dot.title = I18n.t(connected ? 'topbar.sse_connected' : 'topbar.sse_disconnected');
+    }
     if (!wasConnected && connected) {
       refreshAll(state.selectedLandIdent, { forceSync: false, silentError: true });
     }
@@ -1015,9 +1090,98 @@
     renderSidebarSelected();
     renderEstates();
     renderPresets();
+    renderDecorPresets();
     renderFurniture();
     renderEnvironment({ forceSync });
     renderLogs();
+    renderHome();
+  }
+
+  function followActiveEstate(landIdent) {
+    if (!state.estates.some((e) => e.row.land_ident === landIdent)) {
+      refreshAll(landIdent, { forceSync: false, silentError: true });
+      return;
+    }
+    if (state.activeTab === 'estates') {
+      openEstateDetail(landIdent);
+    } else {
+      selectEstate(landIdent);
+    }
+  }
+
+  function estateDisplayName(row) {
+    const loc = formatEstateLocation(row);
+    return row.estate_name?.trim() ? `${row.estate_name} (${loc})` : loc;
+  }
+
+  function renderHome() {
+    const sess = state.primarySession;
+    const ae = sess?.active_estate || null;
+    const curText = $('homeCurrentText');
+    const curBtn = $('btnHomeOpenCurrent');
+    if (curText && curBtn) {
+      if (ae) {
+        const scope = sess && (I18n.formatZone(sess.zone_id) || '');
+        curText.textContent = `${estateDisplayName(ae)} · ${formatSizeLabel(ae.plot_size, ae.is_apartment)}${scope ? ` · ${scope}` : ''}`;
+        curBtn.classList.remove('hidden');
+        curBtn.dataset.landIdent = String(ae.land_ident);
+      } else {
+        curText.textContent = I18n.t(sess ? 'topbar.session_outside' : 'home.current_none');
+        curBtn.classList.add('hidden');
+        delete curBtn.dataset.landIdent;
+      }
+    }
+
+    const recentEl = $('homeRecentEstates');
+    if (!recentEl) return;
+    const recent = [...state.estates]
+      .sort((a, b) => (b.row.updated_at || 0) - (a.row.updated_at || 0))
+      .slice(0, 6);
+    if (recent.length === 0) {
+      recentEl.innerHTML = `<div class="empty-state">${esc(I18n.t('home.recent_empty'))}</div>`;
+      return;
+    }
+    const onlineIdent = ae?.land_ident ?? null;
+    recentEl.innerHTML = recent.map((est) => {
+      const r = est.row;
+      const isOnline = r.land_ident === onlineIdent;
+      return `
+        <button class="recent-item ${isOnline ? 'online' : ''}" data-open-estate="${r.land_ident}" type="button">
+          <span class="recent-name">${esc(r.estate_name || formatEstateLocation(r))}</span>
+          <span class="muted small-text">${esc(formatEstateLocation(r))} · ${esc(formatSizeLabel(r.plot_size, r.is_apartment))}</span>
+        </button>
+      `;
+    }).join('');
+  }
+
+  function renderDecorPresets() {
+    const listEl = $('decorPresetList');
+    if (!listEl) return;
+    const est = getSelectedEstate();
+    if (!est) {
+      listEl.innerHTML = '';
+      return;
+    }
+    const fits = getAllPresets().filter((p) => {
+      if (p.parseError) return false;
+      if (p.normalizedPlotSize === null && !p.isApartment) return true;
+      return !evaluateCompat(p, est).mismatch;
+    }).slice(0, 30);
+    if (fits.length === 0) {
+      listEl.innerHTML = `<div class="empty-state">${esc(I18n.t('decor.preset_empty'))}</div>`;
+      return;
+    }
+    listEl.innerHTML = fits.map((p) => `
+      <div class="preset-item" data-decor-preset="${esc(p.id)}">
+        <div class="preset-item-top">
+          <div>
+            <span class="badge badge-muted">${esc(getPresetSizeText(p))}</span>
+            <strong>${esc(p.title)}</strong>
+          </div>
+          <span class="muted small-text">${esc(I18n.t('sidebar.stat_indoor', { count: p.indoorCount }))} · ${esc(I18n.t('sidebar.stat_outdoor', { count: p.outdoorCount }))}</span>
+        </div>
+      </div>
+    `).join('');
   }
 
   function renderSessionHeader() {
@@ -1056,30 +1220,29 @@
     $('navCountFurniture').textContent = totalFurn;
     $('navCountSnapshots').textContent = snapCount;
 
-    const btnIds = ['sidebarBtnEnter', 'sidebarBtnExit', 'sidebarBtnReload', 'sidebarBtnUndo'];
+    const btnIds = ['detailBtnEnter', 'detailBtnExit', 'detailBtnReload'];
     if (!est) {
-      $('sidebarSizeBadge').textContent = I18n.t('sidebar.unselected_badge');
-      $('sidebarEstateTitle').textContent = I18n.t('sidebar.unselected_title');
-      $('sidebarEstateSub').textContent = I18n.t('sidebar.unselected_sub');
-      $('sidebarEstateStats').innerHTML = '';
+      $('detailSizeBadge').textContent = I18n.t('sidebar.unselected_badge');
+      $('detailTitle').textContent = I18n.t('detail.empty');
+      $('detailSub').textContent = '';
+      $('detailOnlineBadge').classList.add('hidden');
       btnIds.forEach((id) => { $(id).disabled = true; });
       return;
     }
 
     const row = est.row;
-    const loc = formatEstateLocation(row);
-    const title = row.estate_name?.trim() ? `${row.estate_name} (${loc})` : loc;
-    $('sidebarSizeBadge').textContent = formatSizeLabel(row.plot_size, row.is_apartment);
-    $('sidebarEstateTitle').textContent = title;
-    $('sidebarEstateSub').textContent = I18n.t('sidebar.owner_line', {
-      style: formatStyleName(est.pattern_name, 'game.styles.default'),
-      owner: row.owner_name || 'Simulator',
-    });
-    $('sidebarEstateStats').innerHTML = `
-      <span class="badge badge-muted">${esc(I18n.t('sidebar.stat_indoor', { count: est.indoor_count }))}</span>
-      <span class="badge badge-muted">${esc(I18n.t('sidebar.stat_outdoor', { count: est.outdoor_count }))}</span>
-      <span class="badge badge-muted">${esc(I18n.t('sidebar.stat_snapshots', { count: snapCount }))}</span>
-    `;
+    const onlineIdent = state.primarySession?.active_estate?.land_ident ?? null;
+    $('detailSizeBadge').textContent = formatSizeLabel(row.plot_size, row.is_apartment);
+    $('detailTitle').textContent = estateDisplayName(row);
+    $('detailOnlineBadge').classList.toggle('hidden', row.land_ident !== onlineIdent);
+    $('detailSub').textContent = [
+      I18n.t('sidebar.owner_line', {
+        style: formatStyleName(est.pattern_name, 'game.styles.default'),
+        owner: row.owner_name || 'Simulator',
+      }),
+      I18n.t('sidebar.stat_indoor', { count: est.indoor_count }),
+      I18n.t('sidebar.stat_outdoor', { count: est.outdoor_count }),
+    ].join(' · ');
     btnIds.forEach((id) => { $(id).disabled = $(id).dataset.busy === '1'; });
   }
 
@@ -1768,6 +1931,7 @@
       toast(I18n.t('estates.delete_ok', { id: landIdent }));
       if (state.selectedLandIdent === landIdent) {
         state.selectedLandIdent = null;
+        state.estateView = 'list';
         clearSelectionTransientState();
       }
       await refreshAll(null, { forceSync: true });
@@ -1864,7 +2028,23 @@
 
     $('btnRefreshAll').addEventListener('click', () => refreshAll(state.selectedLandIdent, { forceSync: true }));
 
-    $('activeSessionPill').addEventListener('click', async () => {
+    const sessionMenu = $('sessionMenu');
+    const setSessionMenu = (open) => {
+      sessionMenu.classList.toggle('hidden', !open);
+      $('activeSessionPill').setAttribute('aria-expanded', String(open));
+    };
+    $('activeSessionPill').addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      setSessionMenu(sessionMenu.classList.contains('hidden'));
+    });
+    document.addEventListener('click', (ev) => {
+      if (!ev.target.closest('#sessionMenuWrap')) setSessionMenu(false);
+    });
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') setSessionMenu(false);
+    });
+
+    const openCurrentEstate = async () => {
       const ident = state.primarySession?.active_estate?.land_ident;
       if (!ident) {
         toast(I18n.t('estates.no_active_in_game'), true);
@@ -1872,14 +2052,18 @@
       }
       if (!state.estates.some((e) => e.row.land_ident === ident)) {
         toast(I18n.t('estates.active_not_in_list'));
-        await refreshAll();
-        return;
+        await refreshAll(ident);
       }
-      selectEstate(ident);
-      toast(I18n.t('estates.selected_active'));
+      await openEstateDetail(ident);
+    };
+
+    $('menuOpenCurrentEstate').addEventListener('click', () => {
+      setSessionMenu(false);
+      openCurrentEstate();
     });
 
     $('btnUnlockAll').addEventListener('click', () => runBusy($('btnUnlockAll'), async () => {
+      setSessionMenu(false);
       try {
         const res = await apiJson('/session/unlock-all', { method: 'POST', body: '{}' });
         toast(I18n.t('topbar.unlock_done', { count: res.unlocked_characters }));
@@ -1908,15 +2092,63 @@
       }));
     });
 
-    // Sidebar pinned quick buttons
-    $('sidebarBtnEnter').addEventListener('click', () => {
-      if (state.selectedLandIdent) runBusy($('sidebarBtnEnter'), () => warpToEstate(state.selectedLandIdent, true));
+    // Home
+    $('btnHomeOpenCurrent').addEventListener('click', () => {
+      const ident = Number($('btnHomeOpenCurrent').dataset.landIdent);
+      if (ident) openEstateDetail(ident, 'decorate');
     });
-    $('sidebarBtnExit').addEventListener('click', () => {
-      if (state.selectedLandIdent) runBusy($('sidebarBtnExit'), () => warpToEstate(state.selectedLandIdent, false));
+    $('homeRecentEstates').addEventListener('click', (ev) => {
+      const item = ev.target.closest('[data-open-estate]');
+      if (item) openEstateDetail(Number(item.dataset.openEstate));
     });
-    $('sidebarBtnReload').addEventListener('click', () => reloadSelectedEstate($('sidebarBtnReload')));
-    $('sidebarBtnUndo').addEventListener('click', () => undoSelectedEstate($('sidebarBtnUndo')));
+    $('btnHomeNewEstate').addEventListener('click', () => {
+      state.estateView = 'list';
+      switchTab('estates');
+      $('createEstatePanel').classList.remove('hidden');
+    });
+
+    // Estate detail header & sub-tabs
+    $('btnDetailBack').addEventListener('click', showEstateList);
+    $('detailSubtabs').addEventListener('click', (ev) => {
+      const btn = ev.target.closest('[data-subtab]');
+      if (btn) switchSubTab(btn.dataset.subtab);
+    });
+    $('detailBtnEnter').addEventListener('click', () => {
+      if (state.selectedLandIdent) runBusy($('detailBtnEnter'), () => warpToEstate(state.selectedLandIdent, true));
+    });
+    $('detailBtnExit').addEventListener('click', () => {
+      if (state.selectedLandIdent) runBusy($('detailBtnExit'), () => warpToEstate(state.selectedLandIdent, false));
+    });
+    $('detailBtnReload').addEventListener('click', () => reloadSelectedEstate($('detailBtnReload')));
+
+    // Decorate sub-tab
+    $('btnDecorOpenLibrary').addEventListener('click', () => switchTab('presets'));
+    $('decorPresetList').addEventListener('click', (ev) => {
+      const item = ev.target.closest('[data-decor-preset]');
+      if (!item) return;
+      state.selectedPresetId = item.dataset.decorPreset;
+      $('presetPreviewReport').classList.add('hidden');
+      renderPresets();
+      switchTab('presets');
+    });
+    $('btnDecorRmpToggle').addEventListener('click', () => $('btnToggleRmpSync').click());
+
+    // Settings: follow game
+    $('prefFollowGameCheck').checked = state.followGame;
+    $('prefFollowGameCheck').addEventListener('change', (ev) => {
+      state.followGame = !!ev.target.checked;
+      savePrefs();
+    });
+
+    // Logs sub-tabs
+    $('logsSubtabs').addEventListener('click', (ev) => {
+      const btn = ev.target.closest('[data-logtab]');
+      if (!btn) return;
+      document.querySelectorAll('#logsSubtabs [data-logtab]').forEach((b) => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('#view-logs .subview').forEach((v) => {
+        v.classList.toggle('active', v.id === `logview-${btn.dataset.logtab}`);
+      });
+    });
 
     // Estates view
     $('btnToggleCreateEstate').addEventListener('click', () => $('createEstatePanel').classList.toggle('hidden'));
@@ -1978,7 +2210,7 @@
 
       const rowOrCard = ev.target.closest('[data-select-estate]');
       if (rowOrCard) {
-        selectEstate(Number(rowOrCard.dataset.selectEstate));
+        openEstateDetail(Number(rowOrCard.dataset.selectEstate));
       }
     });
 
@@ -2576,6 +2808,7 @@
 
   window.FoundationStudioApp = {
     switchTab,
+    openEstateDetail,
     refreshAll,
     refreshLocalPresets,
     toast,

@@ -1,3 +1,8 @@
+pub mod account;
+pub mod config_yaml;
+pub mod remakeplace;
+pub mod updates;
+
 use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -24,6 +29,9 @@ pub const OODLE_LATEST_RELEASE_API: &str =
 pub const OODLE_FALLBACK_URL: &str = "https://github.com/WorkingRobot/OodleUE/releases/download/2026-06-04-1357/msvc-x64-release.zip";
 pub const OODLE_FALLBACK_SHA256: &str =
     "08844ec260e40134ce6089ffe2003d6f862cd2abf1ebfb62a3fa8d2f69f48a2b";
+pub const OODLE_FALLBACK_TAG: &str = "2026-06-04-1357";
+/// Written next to `oodle/oodle-network-shared.dll` with the release tag it came from.
+pub const OODLE_VERSION_FILE: &str = "version.txt";
 pub const RMP_BRIDGE_LATEST_RELEASE_API: &str =
     "https://api.github.com/repos/bloooowfish/rmp-bridge/releases/latest";
 pub const RMP_BRIDGE_ARCHIVE_URL: &str =
@@ -61,6 +69,8 @@ pub struct SetupStatus {
     pub ue4ss_installed: bool,
     pub game_path_valid: bool,
     pub remakeplace_valid: bool,
+    pub remakeplace_installed_version: Option<String>,
+    pub config_localhost_only: bool,
     pub busy: bool,
 }
 
@@ -97,11 +107,15 @@ struct GithubAsset {
     name: String,
     browser_download_url: String,
     digest: Option<String>,
+    #[serde(default)]
+    size: Option<u64>,
 }
 
 pub struct SetupManager {
     busy: AtomicBool,
     http: Client,
+    /// Client without a total request timeout for multi-GB archive downloads.
+    download_http: Client,
 }
 
 impl Default for SetupManager {
@@ -127,9 +141,17 @@ impl SetupManager {
             .build()
             .unwrap_or_else(|_| Client::new());
 
+        let download_http = Client::builder()
+            .user_agent("Foundation-Studio/0.1.0")
+            .connect_timeout(Duration::from_secs(15))
+            .read_timeout(Duration::from_secs(60))
+            .build()
+            .unwrap_or_else(|_| Client::new());
+
         Self {
             busy: AtomicBool::new(false),
             http,
+            download_http,
         }
     }
 
@@ -196,6 +218,12 @@ impl SetupManager {
         let game_path_valid = resolve_game_executable(&settings.game_path).is_ok();
         let remakeplace_valid =
             try_resolve_remakeplace_source_dir(&settings.remakeplace_path).is_some();
+        let remakeplace_installed_version =
+            remakeplace::read_installed_version(&settings.remakeplace_path);
+        let config_localhost_only = foundation_has_config
+            && config_yaml::config_file_is_localhost_only(
+                &active_foundation_path.join("config.yaml"),
+            );
 
         SetupStatus {
             managed_foundation_dir: managed_foundation.to_string_lossy().into_owned(),
@@ -216,6 +244,8 @@ impl SetupManager {
             ue4ss_installed,
             game_path_valid,
             remakeplace_valid,
+            remakeplace_installed_version,
+            config_localhost_only,
             busy: self.is_busy(),
         }
     }
@@ -432,7 +462,7 @@ impl SetupManager {
             None,
             "Resolving WorkingRobot/OodleUE official release...".to_string(),
         );
-        let (url, expected_sha) = match self
+        let (url, expected_sha, tag) = match self
             .fetch_latest_github_release(OODLE_LATEST_RELEASE_API)
             .await
         {
@@ -445,17 +475,20 @@ impl SetupManager {
                     (
                         asset.browser_download_url.clone(),
                         parse_sha256_digest(asset.digest.as_deref()),
+                        rel.tag_name.clone(),
                     )
                 } else {
                     (
                         OODLE_FALLBACK_URL.to_string(),
                         Some(OODLE_FALLBACK_SHA256.to_string()),
+                        Some(OODLE_FALLBACK_TAG.to_string()),
                     )
                 }
             }
             Err(_) => (
                 OODLE_FALLBACK_URL.to_string(),
                 Some(OODLE_FALLBACK_SHA256.to_string()),
+                Some(OODLE_FALLBACK_TAG.to_string()),
             ),
         };
 
@@ -490,7 +523,11 @@ impl SetupManager {
         }
         let res = extract_oodle_dll_from_zip(&tmp_zip, &dests);
         let _ = fs::remove_file(&tmp_zip);
-        res
+        res?;
+        if let Some(tag) = tag.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
+            let _ = fs::write(foundation_dir.join("oodle").join(OODLE_VERSION_FILE), tag);
+        }
+        Ok(())
     }
 
     async fn install_rmp_bridge(
@@ -752,7 +789,7 @@ pub fn generate_foundation_config(
         .map_err(|e| format!("Failed escaping game directory: {e}"))?;
 
     let yaml = format!(
-        "filesystem:\n  game_path: {escaped_game_dir}\nadmin:\n  server_name: \"http://127.0.0.1:21057\"\nfrontier:\n  server_name: \"http://127.0.0.1:21058\"\nlogin:\n  server_name: \"http://127.0.0.1:21060\"\npatch:\n  server_name: \"http://127.0.0.1:21061\"\nweb:\n  server_name: \"http://127.0.0.1:21062\"\nworld:\n  server_name: \"127.0.0.1\"\n"
+        "filesystem:\n  game_path: {escaped_game_dir}\nadmin:\n  listen_address: \"127.0.0.1\"\n  server_name: \"http://127.0.0.1:21057\"\nfrontier:\n  listen_address: \"127.0.0.1\"\n  server_name: \"http://127.0.0.1:21058\"\nlobby:\n  listen_address: \"127.0.0.1\"\n  server_name: \"127.0.0.1\"\nlogin:\n  listen_address: \"127.0.0.1\"\n  server_name: \"http://127.0.0.1:21060\"\npatch:\n  listen_address: \"127.0.0.1\"\n  server_name: \"http://127.0.0.1:21061\"\nweb:\n  listen_address: \"127.0.0.1\"\n  server_name: \"http://127.0.0.1:21062\"\nworld:\n  listen_address: \"127.0.0.1\"\n  server_name: \"127.0.0.1\"\n"
     );
 
     fs::write(&config_path, yaml).map_err(|e| {
@@ -976,6 +1013,17 @@ fn read_version_marker(root: &Path) -> Option<String> {
     }
 }
 
+/// Oodle release tag recorded at install time; `None` if unknown or the DLL is missing.
+fn read_oodle_version(foundation_root: &Path, bin_dir: &Path) -> Option<String> {
+    let oodle_dir = foundation_root.join("oodle");
+    let has_dll = oodle_dir.join("oodle-network-shared.dll").is_file()
+        || bin_dir.join("oodle-network-shared.dll").is_file();
+    if !has_dll {
+        return None;
+    }
+    read_version_marker(&oodle_dir)
+}
+
 fn temp_download_path(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!(
         "foundation_studio_dl_{}_{}_{}",
@@ -1146,10 +1194,23 @@ mod tests {
         let first_text = fs::read_to_string(&cfg_path).unwrap();
         assert!(first_text.contains("game_path:"));
         assert!(first_text.contains("http://127.0.0.1:21062"));
+        assert_eq!(
+            first_text.matches("listen_address: \"127.0.0.1\"").count(),
+            config_yaml::LISTEN_SECTIONS.len()
+        );
+        for section in config_yaml::LISTEN_SECTIONS {
+            assert_eq!(
+                config_yaml::yaml_section_value(&first_text, section, "listen_address").as_deref(),
+                Some("127.0.0.1"),
+                "section {section}"
+            );
+        }
+        assert!(config_yaml::config_file_is_localhost_only(&cfg_path));
 
         fs::write(&cfg_path, "custom: keep\n").unwrap();
         generate_foundation_config(&foundation_dir, &exe.to_string_lossy(), false).unwrap();
         assert_eq!(fs::read_to_string(&cfg_path).unwrap(), "custom: keep\n");
+        assert!(!config_yaml::config_file_is_localhost_only(&cfg_path));
 
         generate_foundation_config(&foundation_dir, &exe.to_string_lossy(), true).unwrap();
         assert!(

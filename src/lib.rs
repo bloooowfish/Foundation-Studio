@@ -93,6 +93,16 @@ fn get_settings(state: State<'_, AppState>) -> StudioSettings {
     state.settings.lock().map(|g| g.clone()).unwrap_or_default()
 }
 
+/// Keeps fields that only the backend manages when the frontend sends a settings object
+/// that omits them.
+fn preserve_backend_owned_fields(state: &AppState, incoming: &mut StudioSettings) {
+    if incoming.local_account_registered_for.is_none()
+        && let Ok(guard) = state.settings.lock()
+    {
+        incoming.local_account_registered_for = guard.local_account_registered_for.clone();
+    }
+}
+
 #[tauri::command]
 fn get_system_locale_cmd() -> String {
     i18n::detect_system_locale().to_string()
@@ -125,6 +135,8 @@ fn save_settings_cmd(
     normalized.language = normalized.language.clamp(0, 3);
     normalized.expansion_level = normalize_expansion_level(normalized.expansion_level);
     normalized.ui_locale = i18n::normalize_preference(&normalized.ui_locale);
+    settings::apply_local_account_defaults(&mut normalized);
+    preserve_backend_owned_fields(&state, &mut normalized);
     save_settings(&normalized)?;
 
     if let Ok(mut guard) = state.settings.lock() {
@@ -174,6 +186,8 @@ async fn launch_game(
     manual_version: Option<String>,
 ) -> Result<LaunchGameResult, String> {
     let mut warnings = Vec::new();
+    settings::apply_local_account_defaults(&mut settings);
+    preserve_backend_owned_fields(&state, &mut settings);
     let exe_path = resolve_game_executable(&settings.game_path)?;
 
     let existing_pids = find_running_ffxiv_pids();
@@ -512,7 +526,121 @@ async fn start_foundation_server(
         .start_server(app.clone(), &foundation_root, &profile, &sim_url)
         .await?;
     state.housing.force_reconnect_sse();
+    spawn_auto_local_account(app.clone(), Arc::clone(&state.settings));
     Ok(res)
+}
+
+/// Best-effort: once the managed login server accepts connections, register the local account
+/// and emit `local-account` with the outcome. Never fails the server start.
+fn spawn_auto_local_account(app: AppHandle, settings_arc: Arc<Mutex<StudioSettings>>) {
+    tauri::async_runtime::spawn(async move {
+        let (login_server, username) = {
+            let Ok(guard) = settings_arc.lock() else {
+                return;
+            };
+            let ctx = setup::account::account_context(&guard);
+            (ctx.login_server, ctx.username)
+        };
+        if !setup::account::wait_for_login_port(&login_server, std::time::Duration::from_secs(15))
+            .await
+        {
+            let res: Result<setup::account::LocalAccountResult, String> = Err(format!(
+                "Login server did not become reachable at {login_server} within 15s."
+            ));
+            tracing::warn!("Local account auto-registration skipped: {login_server} unreachable");
+            let _ = app.emit(
+                "local-account",
+                setup::account::LocalAccountEvent::from_result(&res, &username),
+            );
+            return;
+        }
+        let res = setup::account::ensure_local_account(&settings_arc, false).await;
+        match &res {
+            Ok(r) => tracing::info!(
+                "Local account '{}' ready (registered={}, alreadyDone={})",
+                r.username,
+                r.registered,
+                r.already_done
+            ),
+            Err(e) => tracing::warn!("Local account auto-registration failed: {e}"),
+        }
+        let _ = app.emit(
+            "local-account",
+            setup::account::LocalAccountEvent::from_result(&res, &username),
+        );
+    });
+}
+
+#[tauri::command]
+async fn ensure_local_account_cmd(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    force: Option<bool>,
+) -> Result<setup::account::LocalAccountResult, String> {
+    let username = state
+        .settings
+        .lock()
+        .map(|g| setup::account::account_context(&g).username)
+        .unwrap_or_default();
+    let res = setup::account::ensure_local_account(&state.settings, force.unwrap_or(false)).await;
+    let _ = app.emit(
+        "local-account",
+        setup::account::LocalAccountEvent::from_result(&res, &username),
+    );
+    res
+}
+
+#[tauri::command]
+async fn install_remakeplace_cmd(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    target_dir: String,
+    repair: bool,
+    profile: Option<String>,
+) -> Result<setup::remakeplace::RemakePlaceInstallReport, String> {
+    if state.rmp.is_running() {
+        return Err(
+            "Please stop ReMakePlace Live Sync before installing or updating ReMakePlace."
+                .to_string(),
+        );
+    }
+    let trimmed = target_dir.trim().trim_matches('"').trim().to_string();
+    if trimmed.is_empty() {
+        return Err("Please choose a ReMakePlace install folder.".to_string());
+    }
+    let target = PathBuf::from(&trimmed);
+    let mut report = state
+        .setup
+        .install_remakeplace(Some(&app), &target, repair)
+        .await?;
+
+    let resolved = try_resolve_remakeplace_source_dir(&trimmed)
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or(trimmed);
+    let settings_snapshot = {
+        let mut guard = state
+            .settings
+            .lock()
+            .map_err(|_| "Failed to lock settings".to_string())?;
+        if guard.remakeplace_path != resolved {
+            guard.remakeplace_path = resolved;
+            save_settings(&guard)?;
+        }
+        guard.clone()
+    };
+    let prof = server::normalize_profile(profile.as_deref().unwrap_or("debug"));
+    report.status = Some(state.setup.inspect_status(&settings_snapshot, &prof));
+    Ok(report)
+}
+
+#[tauri::command]
+async fn check_runtime_updates_cmd(
+    state: State<'_, AppState>,
+    profile: Option<String>,
+) -> Result<setup::updates::RuntimeUpdates, String> {
+    let settings = state.settings.lock().map(|g| g.clone()).unwrap_or_default();
+    let prof = server::normalize_profile(profile.as_deref().unwrap_or("debug"));
+    Ok(state.setup.check_runtime_updates(&settings, &prof).await)
 }
 
 #[tauri::command]
@@ -1038,6 +1166,9 @@ pub fn run() {
             get_setup_status_cmd,
             install_runtime_components_cmd,
             generate_foundation_config_cmd,
+            ensure_local_account_cmd,
+            install_remakeplace_cmd,
+            check_runtime_updates_cmd,
             set_always_on_top_cmd,
             update_global_shortcut_cmd,
             hide_to_tray_cmd,

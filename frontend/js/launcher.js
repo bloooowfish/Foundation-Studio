@@ -6,14 +6,18 @@
   const I18n = window.FoundationI18n;
   const $ = (id) => document.getElementById(id);
 
+  const ONBOARDING_DONE_KEY = 'foundation_studio_onboarding_done_v1';
+
   let alwaysOnTop = false;
   let currentShortcut = 'Ctrl+Shift+H';
   let lastEndpoints = null;
   let rmpStatus = { phase: 'idle', running: false, relay: {} };
   let serverStatus = { mode: 'stopped', preflightIssues: [] };
   let setupStatus = null;
+  let updateInfo = null;
   let setupUiInitialized = false;
   let serverLogLines = [];
+  let rmpInstallBusy = false;
 
   function formatNowTime() {
     return new Date().toLocaleTimeString(I18n.bcp47(), { hour12: false });
@@ -25,6 +29,22 @@
     const line = `[${formatNowTime()}] ${message}`;
     box.textContent = box.textContent ? `${box.textContent}\n${line}` : line;
     box.scrollTop = box.scrollHeight;
+  }
+
+  function isOnboardingDone() {
+    try {
+      return localStorage.getItem(ONBOARDING_DONE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  function markOnboardingDone() {
+    try {
+      localStorage.setItem(ONBOARDING_DONE_KEY, '1');
+    } catch {
+      // Ignore storage errors.
+    }
   }
 
   function renderPinState(pinned) {
@@ -75,10 +95,7 @@
       globalShortcut: $('prefShortcutInput').value.trim() || 'Ctrl+Shift+H',
       alwaysOnTop: !!$('prefAlwaysOnTopCheck').checked,
       minimizeToTrayOnClose: !!$('prefMinimizeToTrayCheck').checked,
-      uiLocale:
-        $('prefUiLocaleSelect')?.value ||
-        $('topbarLocaleSelect')?.value ||
-        I18n.preference(),
+      uiLocale: $('prefUiLocaleSelect')?.value || I18n.preference(),
     };
   }
 
@@ -94,6 +111,15 @@
     return saved;
   }
 
+  async function reloadPathFieldsFromSettings() {
+    const settings = await Bridge.getSettings();
+    $('srvFoundationRoot').value = settings.foundationRoot || '';
+    $('rmpPathInput').value = settings.remakeplacePath || '';
+    $('onbRmpDir').value = stripExeFromPath(settings.remakeplacePath || '');
+    renderRmpPathLabels();
+    return settings;
+  }
+
   async function refreshGameVersion({ quiet = true } = {}) {
     const gamePath = $('launcherGamePath').value.trim();
     if (!gamePath) return;
@@ -107,6 +133,22 @@
     }
   }
 
+  function setStatusBadge(el, badgeClass, text) {
+    if (!el) return;
+    el.className = `badge ${badgeClass}`;
+    el.textContent = text;
+  }
+
+  function renderRmpPathLabels() {
+    const path = $('rmpPathInput').value.trim();
+    const homePath = $('homeRmpPath');
+    if (homePath) homePath.textContent = path || I18n.t('home.rmp_path_none');
+    const rtPath = $('runtimeRmpPath');
+    if (rtPath) rtPath.textContent = path || '-';
+  }
+
+  // ---- ReMakePlace live sync ----
+
   function renderRmpStatus(st) {
     rmpStatus = st || { phase: 'idle', running: false, relay: {} };
     const relay = rmpStatus.relay || {};
@@ -117,37 +159,54 @@
     const pillText = $('rmpStatusText');
     const badge = $('rmpBadge');
     const toggleBtn = $('btnToggleRmpSync');
+    const decorBtn = $('btnDecorRmpToggle');
+
+    let badgeClass;
+    let badgeText;
+    let btnText;
+    let btnClass;
+    let btnDisabled = false;
 
     if (phase === 'preparing') {
       pillDot.className = 'dot dot-warn';
       pillText.textContent = I18n.t('topbar.rmp_preparing');
-      badge.className = 'badge badge-warn';
-      badge.textContent = I18n.t('rmp.badge_preparing');
-      toggleBtn.textContent = I18n.t('rmp.btn_preparing');
-      toggleBtn.disabled = true;
+      badgeClass = 'badge-warn';
+      badgeText = I18n.t('rmp.badge_preparing');
+      btnText = I18n.t('rmp.btn_preparing');
+      btnClass = 'btn btn-primary';
+      btnDisabled = true;
     } else if (rmpStatus.running) {
-      toggleBtn.disabled = false;
-      toggleBtn.textContent = I18n.t('rmp.btn_stop');
-      toggleBtn.className = 'btn btn-danger';
+      btnText = I18n.t('rmp.btn_stop');
+      btnClass = 'btn btn-danger';
       if (attached) {
         pillDot.className = 'dot dot-ok';
         pillText.textContent = I18n.t('topbar.rmp_attached', { count: relay.actor_count ?? 0 });
-        badge.className = 'badge badge-success';
-        badge.textContent = I18n.t('rmp.badge_running');
+        badgeClass = 'badge-success';
+        badgeText = I18n.t('rmp.badge_running');
       } else {
         pillDot.className = 'dot dot-warn';
         pillText.textContent = I18n.t('topbar.rmp_waiting');
-        badge.className = 'badge badge-warn';
-        badge.textContent = I18n.t('rmp.badge_waiting');
+        badgeClass = 'badge-warn';
+        badgeText = I18n.t('rmp.badge_waiting');
       }
     } else {
-      toggleBtn.disabled = false;
-      toggleBtn.textContent = I18n.t('rmp.btn_start');
-      toggleBtn.className = 'btn btn-primary';
+      btnText = I18n.t('rmp.btn_start');
+      btnClass = 'btn btn-primary';
       pillDot.className = phase === 'error' ? 'dot dot-err' : 'dot dot-off';
       pillText.textContent = I18n.t(phase === 'error' ? 'topbar.rmp_error' : 'topbar.rmp_idle');
-      badge.className = phase === 'error' ? 'badge badge-danger' : 'badge badge-muted';
-      badge.textContent = I18n.t(phase === 'error' ? 'rmp.badge_error' : 'rmp.badge_idle');
+      badgeClass = phase === 'error' ? 'badge-danger' : 'badge-muted';
+      badgeText = I18n.t(phase === 'error' ? 'rmp.badge_error' : 'rmp.badge_idle');
+    }
+
+    setStatusBadge(badge, badgeClass, badgeText);
+    setStatusBadge($('decorRmpBadge'), badgeClass, badgeText);
+    toggleBtn.textContent = btnText;
+    toggleBtn.className = btnClass;
+    toggleBtn.disabled = btnDisabled;
+    if (decorBtn) {
+      decorBtn.textContent = btnText;
+      decorBtn.className = `${btnClass} btn-sm`;
+      decorBtn.disabled = btnDisabled;
     }
 
     $('rmpTeleHooks').textContent = `${phase} · ${relay.hooks_registered ?? 0}/${relay.hooks_total ?? 0}`;
@@ -182,24 +241,25 @@
     }
   }
 
+  // ---- Server ----
+
   function renderServerStatus(st) {
     serverStatus = st || { mode: 'stopped', preflightIssues: [] };
     const mode = serverStatus.mode || 'stopped';
     const dot = $('serverStatusDot');
     const pillText = $('serverStatusText');
     const badge = $('srvStatusBadge');
-    const navCount = $('navCountLauncher');
     const startBtn = $('btnServerStart');
     const stopBtn = $('btnServerStop');
+    const launchBtn = $('btnLaunchGame');
+    const running = mode === 'managed' || mode === 'external';
 
     if (mode === 'managed') {
       dot.className = 'dot dot-ok';
       pillText.textContent = I18n.t('topbar.server_managed', {
         patch: serverStatus.protocolPatch || '7.58',
       });
-      badge.className = 'badge badge-success';
-      badge.textContent = I18n.t('server.badge_managed', { pid: serverStatus.pid ?? '-' });
-      navCount.textContent = 'ON';
+      setStatusBadge(badge, 'badge-success', I18n.t('server.badge_managed', { pid: serverStatus.pid ?? '-' }));
       startBtn.disabled = true;
       stopBtn.disabled = false;
     } else if (mode === 'external') {
@@ -207,20 +267,26 @@
       pillText.textContent = I18n.t('topbar.server_external', {
         patch: serverStatus.protocolPatch || '7.58',
       });
-      badge.className = 'badge badge-accent';
-      badge.textContent = I18n.t('server.badge_external');
-      navCount.textContent = 'EXT';
+      setStatusBadge(badge, 'badge-accent', I18n.t('server.badge_external'));
       startBtn.disabled = true;
       stopBtn.disabled = true;
     } else {
       dot.className = 'dot dot-off';
       pillText.textContent = I18n.t('topbar.server_stopped');
-      badge.className = 'badge badge-muted';
-      badge.textContent = I18n.t('server.badge_stopped');
-      navCount.textContent = 'OFF';
-      startBtn.disabled = false;
+      setStatusBadge(badge, 'badge-muted', I18n.t('server.badge_stopped'));
+      startBtn.disabled = startBtn.dataset.busy === '1';
       stopBtn.disabled = true;
     }
+
+    if (launchBtn && launchBtn.dataset.busy !== '1') {
+      launchBtn.disabled = !running;
+      launchBtn.title = running ? '' : I18n.t('home.game_needs_server');
+    }
+    setStatusBadge(
+      $('homeGameBadge'),
+      running ? 'badge-success' : 'badge-muted',
+      I18n.t(running ? 'home.game_ready' : 'home.game_needs_server')
+    );
 
     const pf = $('srvPreflightBox');
     const issues = Array.isArray(serverStatus.preflightIssues) ? serverStatus.preflightIssues : [];
@@ -248,10 +314,105 @@
     }
   }
 
-  function setStatusBadge(el, badgeClass, text) {
-    if (!el) return;
-    el.className = `badge ${badgeClass}`;
-    el.textContent = text;
+  // ---- Runtime setup ----
+
+  function requiredReady(st) {
+    return !!(
+      st
+      && st.foundationInstalled
+      && st.foundationHasOodleFeature
+      && st.oodleInstalled
+      && st.foundationHasConfig
+    );
+  }
+
+  function renderOnboarding() {
+    const st = setupStatus;
+    const onb = $('homeOnboarding');
+    const main = $('homeMain');
+    if (!onb || !main || !st) return;
+
+    const ready = requiredReady(st);
+    const gameOk = !!st.gamePathValid;
+    const showOnb = !ready || !gameOk || !isOnboardingDone();
+    onb.classList.toggle('hidden', !showOnb);
+    main.classList.toggle('hidden', showOnb);
+
+    setStatusBadge(
+      $('onbStateGame'),
+      gameOk ? 'badge-success' : 'badge-warn',
+      I18n.t(gameOk ? 'home.onb_game_ok' : 'setup.state_missing')
+    );
+    setStatusBadge(
+      $('onbStateRuntime'),
+      st.busy ? 'badge-warn' : ready ? 'badge-success' : 'badge-warn',
+      I18n.t(st.busy ? 'setup.badge_busy' : ready ? 'setup.state_ok' : 'setup.state_missing')
+    );
+    setStatusBadge(
+      $('onbStateRmp'),
+      st.remakeplaceValid ? 'badge-success' : 'badge-muted',
+      I18n.t(st.remakeplaceValid ? 'setup.state_ok' : 'home.onb_optional')
+    );
+
+    const installBtn = $('btnOnbInstall');
+    if (installBtn) installBtn.disabled = !!st.busy || ready || !gameOk;
+    const startBtn = $('btnOnbStart');
+    if (startBtn) startBtn.disabled = !(ready && gameOk);
+    const hint = $('onbFooterHint');
+    if (hint) {
+      hint.textContent = I18n.t(
+        !gameOk ? 'home.onb_need_game' : !ready ? 'home.onb_start_hint' : 'home.onb_ready_hint'
+      );
+    }
+    ['btnOnbRmpInstall', 'btnOnbRmpExisting'].forEach((id) => {
+      const el = $(id);
+      if (el) el.disabled = !!st.busy || rmpInstallBusy;
+    });
+  }
+
+  function renderUpdateInfo() {
+    const fInfo = $('runtimeFoundationInfo');
+    const rInfo = $('runtimeRmpInfo');
+    const f = updateInfo?.foundation;
+    const r = updateInfo?.remakeplace;
+    if (fInfo) {
+      if (f?.updateAvailable) {
+        fInfo.textContent = I18n.t('runtime.update_available', { installed: f.installed || '-', latest: f.latest });
+      } else if (f?.latest && f?.installed) {
+        fInfo.textContent = I18n.t('runtime.up_to_date', { version: f.installed });
+      } else {
+        fInfo.textContent = I18n.t('setup.comp_foundation_src');
+      }
+    }
+    if (rInfo) {
+      if (r?.updateAvailable && r?.installed) {
+        rInfo.textContent = I18n.t('runtime.update_available', { installed: r.installed, latest: r.latest });
+      } else if (r?.installed && r?.latest) {
+        rInfo.textContent = I18n.t('runtime.up_to_date', { version: r.installed });
+      } else if (r?.latest) {
+        rInfo.textContent = I18n.t('runtime.latest_version', { version: r.latest });
+      } else {
+        rInfo.textContent = '';
+      }
+    }
+    const rmpBtn = $('btnRmpInstall');
+    if (rmpBtn) {
+      const installed = !!setupStatus?.remakeplaceValid;
+      rmpBtn.textContent = I18n.t(installed ? 'runtime.rmp_update' : 'runtime.rmp_install');
+      rmpBtn.disabled = rmpInstallBusy || !!setupStatus?.busy || (installed && r && r.updateAvailable === false && !!r.installed);
+    }
+    const repairBtn = $('btnRmpRepair');
+    if (repairBtn) repairBtn.disabled = rmpInstallBusy || !!setupStatus?.busy || !setupStatus?.remakeplaceValid;
+    renderNavRuntimeBadge();
+  }
+
+  function renderNavRuntimeBadge() {
+    const badge = $('navBadgeRuntime');
+    if (!badge) return;
+    const needsAttention = (setupStatus && !requiredReady(setupStatus))
+      || !!updateInfo?.foundation?.updateAvailable
+      || !!(updateInfo?.remakeplace?.updateAvailable && updateInfo?.remakeplace?.installed);
+    badge.classList.toggle('hidden', !needsAttention);
   }
 
   function renderSetupStatus(st) {
@@ -265,11 +426,7 @@
       setStatusBadge($('setupStateFoundation'), 'badge-warn', I18n.t('setup.state_needs_oodle'));
     } else {
       const detail = setupStatus.foundationVersion || setupStatus.foundationLayout || 'ok';
-      setStatusBadge(
-        $('setupStateFoundation'),
-        'badge-success',
-        I18n.t('setup.state_ok_ver', { detail })
-      );
+      setStatusBadge($('setupStateFoundation'), 'badge-success', I18n.t('setup.state_ok_ver', { detail }));
     }
 
     setStatusBadge(
@@ -279,32 +436,42 @@
     );
     setStatusBadge(
       $('setupStateBridge'),
-      setupStatus.rmpBridgeInstalled ? 'badge-success' : 'badge-danger',
+      setupStatus.rmpBridgeInstalled ? 'badge-success' : 'badge-muted',
       I18n.t(setupStatus.rmpBridgeInstalled ? 'setup.state_ok' : 'setup.state_missing')
     );
     setStatusBadge(
       $('setupStateUe4ss'),
-      setupStatus.ue4ssInstalled ? 'badge-success' : 'badge-danger',
+      setupStatus.ue4ssInstalled ? 'badge-success' : 'badge-muted',
       I18n.t(setupStatus.ue4ssInstalled ? 'setup.state_ok' : 'setup.state_missing')
     );
-    setStatusBadge(
-      $('setupStateConfig'),
-      setupStatus.foundationHasConfig ? 'badge-success' : 'badge-warn',
-      I18n.t(setupStatus.foundationHasConfig ? 'setup.state_ok' : 'setup.state_missing')
-    );
-    setStatusBadge(
-      $('setupStateRmp'),
-      setupStatus.remakeplaceValid ? 'badge-success' : 'badge-muted',
-      I18n.t(setupStatus.remakeplaceValid ? 'setup.state_ok' : 'setup.state_missing')
-    );
 
-    const ready =
-      okFoundation &&
-      setupStatus.oodleInstalled &&
-      setupStatus.foundationHasConfig &&
-      setupStatus.rmpBridgeInstalled &&
-      setupStatus.ue4ssInstalled;
+    const localOnly = setupStatus.configLocalhostOnly !== false;
+    if (!setupStatus.foundationHasConfig) {
+      setStatusBadge($('setupStateConfig'), 'badge-danger', I18n.t('setup.state_missing'));
+    } else if (!localOnly) {
+      setStatusBadge($('setupStateConfig'), 'badge-warn', I18n.t('runtime.config_not_local_badge'));
+    } else {
+      setStatusBadge($('setupStateConfig'), 'badge-success', I18n.t('setup.state_ok'));
+    }
+    const cfgInfo = $('runtimeConfigInfo');
+    if (cfgInfo) {
+      cfgInfo.textContent = setupStatus.foundationHasConfig && !localOnly
+        ? I18n.t('runtime.config_not_local')
+        : I18n.t('setup.comp_config_src');
+    }
 
+    if (setupStatus.remakeplaceValid) {
+      const ver = setupStatus.remakeplaceInstalledVersion;
+      setStatusBadge(
+        $('setupStateRmp'),
+        'badge-success',
+        ver ? I18n.t('setup.state_ok_ver', { detail: ver }) : I18n.t('setup.state_ok')
+      );
+    } else {
+      setStatusBadge($('setupStateRmp'), 'badge-muted', I18n.t('setup.state_missing'));
+    }
+
+    const ready = okFoundation && setupStatus.oodleInstalled && setupStatus.foundationHasConfig;
     if (setupStatus.busy) {
       setStatusBadge($('setupBadgeOverall'), 'badge-warn', I18n.t('setup.badge_busy'));
     } else if (ready) {
@@ -320,8 +487,6 @@
 
     if (!setupUiInitialized) {
       setupUiInitialized = true;
-      const details = $('setupDetails');
-      if (details) details.open = !ready;
       const managedChk = $('setupUseManagedDirCheck');
       if (managedChk) {
         const activeLow = (setupStatus.activeFoundationDir || '').toLowerCase();
@@ -331,8 +496,11 @@
     }
 
     document.querySelectorAll('[data-setup-install], #btnSetupInstallAll, #btnSetupGenerateConfig').forEach((btn) => {
-      btn.disabled = !!setupStatus.busy;
+      btn.disabled = !!setupStatus.busy || rmpInstallBusy;
     });
+
+    renderOnboarding();
+    renderUpdateInfo();
   }
 
   async function refreshSetupStatus() {
@@ -346,23 +514,48 @@
     }
   }
 
+  async function refreshUpdates({ quiet = true } = {}) {
+    if (typeof Bridge.checkRuntimeUpdates !== 'function') return null;
+    try {
+      updateInfo = await Bridge.checkRuntimeUpdates($('srvProfileSelect')?.value || null);
+      renderUpdateInfo();
+      if (!quiet) Studio?.toast(I18n.t('runtime.updates_checked'));
+      return updateInfo;
+    } catch (err) {
+      if (!quiet) Studio?.toast(I18n.t('runtime.updates_fail', { error: err.message }), true);
+      return null;
+    }
+  }
+
+  function showSetupProgress({ percent = null, text = null } = {}) {
+    document.querySelectorAll('.js-setup-progress').forEach((wrap) => wrap.classList.remove('hidden'));
+    if (typeof percent === 'number') {
+      document.querySelectorAll('.js-setup-progress-bar').forEach((bar) => { bar.style.width = `${percent}%`; });
+    }
+    if (text !== null) {
+      document.querySelectorAll('.js-setup-progress-text').forEach((el) => { el.textContent = text; });
+    }
+  }
+
+  function missingRequiredComponents(st) {
+    const missing = [];
+    if (!st?.foundationInstalled || !st?.foundationHasOodleFeature) missing.push('foundation');
+    if (!st?.oodleInstalled) missing.push('oodle');
+    if (!st?.foundationHasConfig && ($('launcherGamePath')?.value || '').trim()) missing.push('config');
+    return missing;
+  }
+
   async function runSetupInstall(components) {
     const useManaged = !!$('setupUseManagedDirCheck')?.checked;
     const profile = $('srvProfileSelect')?.value || 'debug';
-    const wrap = $('setupProgressWrap');
-    const bar = $('setupProgressBar');
-    const txt = $('setupProgressText');
-    if (wrap) wrap.classList.remove('hidden');
-    if (bar) bar.style.width = '5%';
-    if (txt) txt.textContent = I18n.t('setup.install_start', { count: components.length });
+    showSetupProgress({ percent: 5, text: I18n.t('setup.install_start', { count: components.length }) });
 
     try {
       await persistFormSettings({ quiet: true });
       appendLauncherLog(I18n.t('setup.install_start', { count: components.length }));
       const report = await Bridge.installRuntimeComponents(components, useManaged, profile);
       renderSetupStatus(report.status);
-      const settings = await Bridge.getSettings();
-      $('srvFoundationRoot').value = settings.foundationRoot || '';
+      await reloadPathFieldsFromSettings();
       await refreshServerStatus();
 
       if (report.installed?.length) {
@@ -378,11 +571,81 @@
     } catch (err) {
       appendLauncherLog(`ERROR (Setup): ${err.message}`);
       Studio?.toast(I18n.t('setup.install_partial_err', { error: err.message }), true);
-      await refreshSetupStatus();
     } finally {
-      if (bar) bar.style.width = '100%';
+      showSetupProgress({ percent: 100 });
+      await refreshSetupStatus();
     }
   }
+
+  function stripExeFromPath(p) {
+    const trimmed = (p || '').trim().replace(/^"|"$/g, '');
+    if (/\.exe$/i.test(trimmed)) return trimmed.replace(/[\\/][^\\/]+$/, '');
+    return trimmed;
+  }
+
+  async function runRemakePlaceInstall(targetDir, repair) {
+    if (typeof Bridge.installRemakePlace !== 'function') {
+      Studio?.toast(I18n.t('runtime.rmp_fail', { error: 'installRemakePlace unavailable' }), true);
+      return;
+    }
+    const dir = stripExeFromPath(targetDir);
+    if (!dir) return;
+    if (rmpStatus.running) {
+      Studio?.toast(I18n.t('runtime.rmp_stop_sync_first'), true);
+      return;
+    }
+    rmpInstallBusy = true;
+    renderSetupStatus(setupStatus);
+    showSetupProgress({ percent: 0, text: I18n.t('runtime.rmp_installing') });
+    appendLauncherLog(I18n.t('runtime.rmp_installing'));
+    try {
+      await persistFormSettings({ quiet: true });
+      const res = await Bridge.installRemakePlace(dir, !!repair, $('srvProfileSelect')?.value || null);
+      await reloadPathFieldsFromSettings();
+      const version = res?.version || res?.tag || res?.status?.remakeplaceInstalledVersion || '';
+      const msg = I18n.t('runtime.rmp_done', { version });
+      appendLauncherLog(msg);
+      Studio?.toast(msg);
+    } catch (err) {
+      const msg = I18n.t('runtime.rmp_fail', { error: err.message });
+      appendLauncherLog(`ERROR (ReMakePlace): ${err.message}`);
+      Studio?.toast(msg, true);
+    } finally {
+      rmpInstallBusy = false;
+      await refreshSetupStatus();
+      refreshUpdates({ quiet: true });
+    }
+  }
+
+  async function pickRemakePlaceInstallDir() {
+    const current = stripExeFromPath($('rmpPathInput').value) || null;
+    return await Bridge.pickFolder(I18n.t('runtime.rmp_pick_target'), current);
+  }
+
+  async function useExistingRemakePlace(pathHint) {
+    let picked = (pathHint || '').trim();
+    if (!picked) {
+      picked = await Bridge.pickFile(
+        I18n.t('dialog.pick_rmp'),
+        $('rmpPathInput').value.trim() || null,
+        I18n.t('dialog.filter_rmp'),
+        ['exe']
+      );
+    }
+    if (!picked) return;
+    try {
+      const resolved = await Bridge.resolveReMakePlacePath(picked);
+      $('rmpPathInput').value = resolved || picked;
+      renderRmpPathLabels();
+      await persistFormSettings({ quiet: true });
+      appendLauncherLog(I18n.t('rmp.path_saved', { path: $('rmpPathInput').value }));
+      await refreshSetupStatus();
+    } catch (err) {
+      Studio?.toast(I18n.t('rmp.path_fail', { error: err.message }), true);
+    }
+  }
+
+  // ---- Server console ----
 
   function renderServerConsole() {
     const el = $('srvConsoleLogs');
@@ -425,19 +688,34 @@
     return res;
   }
 
-  function bindEvents() {
-    $('serverStatusPill')?.addEventListener('click', () => Studio?.switchTab('launcher'));
-    $('rmpStatusPill')?.addEventListener('click', () => Studio?.switchTab('launcher'));
+  async function applyGamePath(picked) {
+    $('launcherGamePath').value = picked;
+    $('onbGamePath').value = picked;
+    await refreshGameVersion({ quiet: false });
+    await persistFormSettings({ quiet: true });
+    await refreshSetupStatus();
+  }
 
-    const handleLocaleChange = async (ev) => {
+  async function pickGamePath(current) {
+    return await Bridge.pickFile(
+      I18n.t('dialog.pick_game'),
+      current || null,
+      I18n.t('dialog.filter_ffxiv'),
+      ['exe']
+    );
+  }
+
+  function bindEvents() {
+    $('serverStatusPill')?.addEventListener('click', () => Studio?.switchTab('home'));
+    $('rmpStatusPill')?.addEventListener('click', () => Studio?.switchTab('home'));
+
+    $('prefUiLocaleSelect')?.addEventListener('change', async (ev) => {
       try {
         await I18n.setLocale(ev.target.value);
       } catch (err) {
         Studio?.toast(I18n.t('launcher.settings_save_fail', { error: err.message }), true);
       }
-    };
-    $('topbarLocaleSelect')?.addEventListener('change', handleLocaleChange);
-    $('prefUiLocaleSelect')?.addEventListener('change', handleLocaleChange);
+    });
 
     const togglePin = async (targetPinned) => {
       try {
@@ -468,21 +746,55 @@
     });
 
     $('launcherServerUrl')?.addEventListener('input', () => renderEndpoints(null));
-    $('launcherGamePath')?.addEventListener('blur', () => refreshGameVersion({ quiet: true }));
+    $('launcherGamePath')?.addEventListener('blur', async () => {
+      $('onbGamePath').value = $('launcherGamePath').value;
+      await refreshGameVersion({ quiet: true });
+    });
 
     $('btnBrowseGamePath')?.addEventListener('click', async () => {
-      const picked = await Bridge.pickFile(
-        I18n.t('dialog.pick_game'),
-        $('launcherGamePath').value.trim() || null,
-        I18n.t('dialog.filter_ffxiv'),
-        ['exe']
-      );
-      if (!picked) return;
-      $('launcherGamePath').value = picked;
-      await refreshGameVersion({ quiet: false });
-      await persistFormSettings({ quiet: true });
-      await refreshSetupStatus();
+      const picked = await pickGamePath($('launcherGamePath').value.trim());
+      if (picked) await applyGamePath(picked);
     });
+
+    // Onboarding
+    $('btnOnbBrowseGame')?.addEventListener('click', async () => {
+      const picked = await pickGamePath($('onbGamePath').value.trim());
+      if (picked) await applyGamePath(picked);
+    });
+    $('onbGamePath')?.addEventListener('change', async (ev) => {
+      const val = ev.target.value.trim();
+      if (val) await applyGamePath(val);
+    });
+    $('btnOnbInstall')?.addEventListener('click', async () => {
+      const st = (await refreshSetupStatus()) || setupStatus;
+      const missing = missingRequiredComponents(st);
+      if (!missing.length) {
+        Studio?.toast(I18n.t('setup.install_none_missing'));
+        return;
+      }
+      await runSetupInstall(missing);
+    });
+    $('btnOnbBrowseRmpDir')?.addEventListener('click', async () => {
+      const picked = await Bridge.pickFolder(I18n.t('runtime.rmp_pick_target'), $('onbRmpDir').value.trim() || null);
+      if (picked) $('onbRmpDir').value = picked;
+    });
+    $('btnOnbRmpInstall')?.addEventListener('click', async () => {
+      let dir = $('onbRmpDir').value.trim();
+      if (!dir) {
+        dir = await pickRemakePlaceInstallDir();
+        if (!dir) return;
+        $('onbRmpDir').value = dir;
+      }
+      await runRemakePlaceInstall(dir, false);
+    });
+    $('btnOnbRmpExisting')?.addEventListener('click', () => useExistingRemakePlace($('onbRmpDir').value.trim()));
+    $('btnOnbStart')?.addEventListener('click', () => {
+      markOnboardingDone();
+      renderOnboarding();
+      Studio?.switchTab('home');
+    });
+
+    $('btnHomeAdvancedLaunch')?.addEventListener('click', () => Studio?.switchTab('settings'));
 
     $('btnRefreshLauncher')?.addEventListener('click', async () => {
       await refreshGameVersion({ quiet: false });
@@ -497,6 +809,8 @@
     $('btnSaveLauncherSettings')?.addEventListener('click', async () => {
       try {
         await persistFormSettings({ quiet: false });
+        renderRmpPathLabels();
+        await refreshSetupStatus();
       } catch (err) {
         Studio?.toast(I18n.t('launcher.settings_save_fail', { error: err.message }), true);
       }
@@ -517,6 +831,7 @@
 
     $('btnLaunchGame')?.addEventListener('click', async () => {
       const btn = $('btnLaunchGame');
+      btn.dataset.busy = '1';
       btn.disabled = true;
       try {
         const merged = await buildMergedSettingsFromForm();
@@ -527,9 +842,7 @@
         for (const w of res.warnings || []) {
           appendLauncherLog(I18n.t('launcher.warn_prefix', { msg: w }));
         }
-        appendLauncherLog(
-          I18n.t('launcher.launch_log_pid', { pid: res.pid, path: res.executablePath })
-        );
+        appendLauncherLog(I18n.t('launcher.launch_log_pid', { pid: res.pid, path: res.executablePath }));
         appendLauncherLog(I18n.t('launcher.launch_log_args', { args: res.maskedArguments }));
         const toastMsg = I18n.t('launcher.launch_done_toast', { pid: res.pid });
         Studio?.pushExternalLog('launcher_launch', 'launcher', toastMsg);
@@ -541,26 +854,22 @@
         appendLauncherLog(I18n.t('launcher.error_prefix', { msg: err.message }));
         Studio?.toast(I18n.t('launcher.launch_fail_toast', { error: err.message }), true);
       } finally {
-        btn.disabled = false;
+        delete btn.dataset.busy;
+        renderServerStatus(serverStatus);
       }
     });
 
-    $('btnBrowseRmpPath')?.addEventListener('click', async () => {
-      const picked = await Bridge.pickFile(
-        I18n.t('dialog.pick_rmp'),
-        $('rmpPathInput').value.trim() || null,
-        I18n.t('dialog.filter_rmp'),
-        ['exe']
-      );
-      if (!picked) return;
-      try {
-        const resolved = await Bridge.resolveReMakePlacePath(picked);
-        $('rmpPathInput').value = resolved || picked;
-        await persistFormSettings({ quiet: true });
-        appendLauncherLog(I18n.t('rmp.path_saved', { path: $('rmpPathInput').value }));
-      } catch (err) {
-        Studio?.toast(I18n.t('rmp.path_fail', { error: err.message }), true);
-      }
+    $('btnBrowseRmpPath')?.addEventListener('click', () => useExistingRemakePlace(''));
+    $('btnRmpChangeDir')?.addEventListener('click', () => useExistingRemakePlace(''));
+
+    $('btnRmpInstall')?.addEventListener('click', async () => {
+      let dir = setupStatus?.remakeplaceValid ? stripExeFromPath($('rmpPathInput').value) : '';
+      if (!dir) dir = await pickRemakePlaceInstallDir();
+      if (dir) await runRemakePlaceInstall(dir, false);
+    });
+    $('btnRmpRepair')?.addEventListener('click', async () => {
+      const dir = stripExeFromPath($('rmpPathInput').value);
+      if (dir) await runRemakePlaceInstall(dir, true);
     });
 
     $('btnToggleRmpSync')?.addEventListener('click', async () => {
@@ -576,6 +885,7 @@
       const rmpPath = $('rmpPathInput').value.trim();
       if (!rmpPath) {
         Studio?.toast(I18n.t('rmp.missing_path'), true);
+        Studio?.switchTab('runtime');
         return;
       }
       try {
@@ -583,11 +893,7 @@
         appendLauncherLog(I18n.t('rmp.starting_log', { path: rmpPath }));
         const st = await Bridge.startRmpSync(rmpPath);
         renderRmpStatus(st);
-        Studio?.pushExternalLog(
-          'rmp_started',
-          'rmp',
-          I18n.t('rmp.started_log', { pid: st.shadowPid })
-        );
+        Studio?.pushExternalLog('rmp_started', 'rmp', I18n.t('rmp.started_log', { pid: st.shadowPid }));
       } catch (err) {
         appendLauncherLog(`ERROR (RMP): ${err.message}`);
         Studio?.toast(I18n.t('rmp.start_fail', { error: err.message }), true);
@@ -606,7 +912,10 @@
       await refreshServerStatus();
     });
 
-    $('srvProfileSelect')?.addEventListener('change', () => refreshServerStatus());
+    $('srvProfileSelect')?.addEventListener('change', async () => {
+      await refreshServerStatus();
+      await refreshSetupStatus();
+    });
     $('btnServerRefresh')?.addEventListener('click', async () => {
       await persistFormSettings({ quiet: true });
       await refreshServerStatus();
@@ -614,6 +923,7 @@
 
     $('btnServerStart')?.addEventListener('click', async () => {
       const btn = $('btnServerStart');
+      btn.dataset.busy = '1';
       btn.disabled = true;
       try {
         await persistFormSettings({ quiet: true });
@@ -622,16 +932,13 @@
         appendLauncherLog(I18n.t('server.starting', { profile }));
         const st = await Bridge.startFoundationServer(root, profile);
         renderServerStatus(st);
-        $('srvConsoleDetails').open = true;
-        Studio?.pushExternalLog(
-          'server_started',
-          'server',
-          I18n.t('server.started_log', { pid: st.pid ?? '-' })
-        );
+        Studio?.pushExternalLog('server_started', 'server', I18n.t('server.started_log', { pid: st.pid ?? '-' }));
         Studio?.toast(I18n.t('server.started_toast'));
       } catch (err) {
         appendLauncherLog(`ERROR (Server): ${err.message}`);
         Studio?.toast(I18n.t('server.start_fail', { error: err.message }), true);
+      } finally {
+        delete btn.dataset.busy;
         await refreshServerStatus();
       }
     });
@@ -660,16 +967,19 @@
       await refreshServerStatus();
     });
 
+    $('btnCheckUpdates')?.addEventListener('click', async () => {
+      const btn = $('btnCheckUpdates');
+      btn.disabled = true;
+      try {
+        await refreshUpdates({ quiet: false });
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     $('btnSetupInstallAll')?.addEventListener('click', async () => {
       const st = (await refreshSetupStatus()) || setupStatus;
-      const missing = [];
-      if (!st?.foundationInstalled || !st?.foundationHasOodleFeature) missing.push('foundation');
-      if (!st?.oodleInstalled) missing.push('oodle');
-      if (!st?.rmpBridgeInstalled) missing.push('rmp_bridge');
-      if (!st?.ue4ssInstalled) missing.push('ue4ss');
-      if (!st?.foundationHasConfig && ($('launcherGamePath')?.value || '').trim()) {
-        missing.push('config');
-      }
+      const missing = missingRequiredComponents(st);
       if (!missing.length) {
         Studio?.toast(I18n.t('setup.install_none_missing'));
         return;
@@ -687,8 +997,7 @@
         const root = $('srvFoundationRoot').value.trim() || null;
         const gamePath = $('launcherGamePath').value.trim() || null;
         const cfgPath = await Bridge.generateFoundationConfig(root, gamePath, true);
-        const settings = await Bridge.getSettings();
-        $('srvFoundationRoot').value = settings.foundationRoot || '';
+        await reloadPathFieldsFromSettings();
         const msg = I18n.t('setup.cfg_generated', { path: cfgPath });
         appendLauncherLog(msg);
         Studio?.toast(msg);
@@ -698,31 +1007,31 @@
         Studio?.toast(I18n.t('setup.cfg_fail', { error: err.message }), true);
       }
     });
-
-    $('btnOpenRemakePlaceRelease')?.addEventListener('click', () => {
-      Bridge.openExternalUrl('https://github.com/RemakePlace/app/releases/latest').catch((err) => {
-        Studio?.toast(err.message, true);
-      });
-    });
   }
 
   function subscribeBackendEvents() {
     Bridge.listen('setup-progress', (ev) => {
       const p = ev.payload;
       if (!p) return;
-      const wrap = $('setupProgressWrap');
-      const bar = $('setupProgressBar');
-      const txt = $('setupProgressText');
-      if (wrap) wrap.classList.remove('hidden');
-      if (bar && typeof p.percent === 'number') {
-        bar.style.width = `${p.percent}%`;
-      }
-      if (txt) {
-        txt.textContent = I18n.t('setup.progress_fmt', {
+      showSetupProgress({
+        percent: typeof p.percent === 'number' ? p.percent : null,
+        text: I18n.t('setup.progress_fmt', {
           component: p.component,
           phase: p.phase,
           detail: p.detail,
-        });
+        }),
+      });
+    });
+    Bridge.listen('local-account', (ev) => {
+      const p = ev.payload;
+      if (!p) return;
+      if (p.error) {
+        appendLauncherLog(I18n.t('account.fail', { error: p.error }));
+        Studio?.toast(I18n.t('account.fail', { error: p.error }), true);
+      } else if (p.registered && !p.alreadyDone) {
+        const msg = I18n.t('account.registered', { username: p.username || '' });
+        appendLauncherLog(msg);
+        Studio?.toast(msg);
       }
     });
     Bridge.listen('rmp-sync-status', (ev) => {
@@ -764,6 +1073,7 @@
       renderRmpStatus(rmpStatus);
       renderServerStatus(serverStatus);
       renderSetupStatus(setupStatus);
+      renderRmpPathLabels();
       renderServerConsole();
     });
 
@@ -773,6 +1083,7 @@
     currentShortcut = settings.globalShortcut || 'Ctrl+Shift+H';
     $('launcherServerUrl').value = settings.serverUrl || 'http://127.0.0.1:21062';
     $('launcherGamePath').value = settings.gamePath || '';
+    $('onbGamePath').value = settings.gamePath || '';
     $('launcherUsername').value = settings.username || '';
     $('launcherPassword').value = settings.password || '';
     $('launcherLanguage').value = String(settings.language ?? 0);
@@ -782,17 +1093,19 @@
     $('launcherOpenDashboardCheck').checked = settings.openDashboardOnLaunch !== false;
     $('launcherCloseOnLaunchCheck').checked = !!settings.closeOnLaunch;
     $('rmpPathInput').value = settings.remakeplacePath || '';
+    $('onbRmpDir').value = stripExeFromPath(settings.remakeplacePath || '');
     $('srvFoundationRoot').value = settings.foundationRoot || '';
     $('prefShortcutInput').value = currentShortcut;
     $('prefMinimizeToTrayCheck').checked = settings.minimizeToTrayOnClose !== false;
     renderPinState(!!settings.alwaysOnTop);
+    renderRmpPathLabels();
 
     Studio?.syncWatchedSettings(settings.watchedPresetDirs, settings.autoApplyWatchedPresets);
     await Studio?.refreshLocalPresets();
 
     await refreshGameVersion({ quiet: true });
 
-    const [rmp, srv, setupSt, existingLogs] = await Promise.all([
+    const [rmp, , setupSt, existingLogs] = await Promise.all([
       Bridge.getRmpStatus().catch(() => null),
       refreshServerStatus(),
       refreshSetupStatus(),
@@ -805,9 +1118,11 @@
     }
 
     appendLauncherLog(I18n.t('launcher.ready'));
-    if (srv && srv.mode === 'stopped') {
-      Studio?.switchTab('launcher');
+    if (setupSt && (!requiredReady(setupSt) || !setupSt.gamePathValid)) {
+      Studio?.switchTab('home');
     }
+
+    refreshUpdates({ quiet: true });
 
     setInterval(() => {
       refreshServerStatus();

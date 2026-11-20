@@ -6,10 +6,11 @@
   <title>Foundation Studio</title>
   <link rel="stylesheet" href="./styles/dashboard.css" />
   <link rel="stylesheet" href="./styles/launcher.css" />
+  <link rel="stylesheet" href="./styles/layout.css" />
 </head>
 <body>
   <div class="app-shell">
-    <!-- Top Sticky Header -->
+    <!-- Top Bar: status + window controls only -->
     <header class="topbar">
       <div class="topbar-left">
         <div class="brand">
@@ -20,229 +21,189 @@
           </div>
         </div>
 
-        <button class="status-pill" id="serverStatusPill" type="button" data-i18n-title="topbar.server_pill_title" title="Click to open Launcher &amp; Server Control">
+        <button class="status-pill" id="serverStatusPill" type="button" data-i18n-title="topbar.server_pill_title" title="Server status">
           <span class="dot dot-off" id="serverStatusDot"></span>
           <span id="serverStatusText" data-i18n="topbar.server_checking">Checking server...</span>
+          <span class="dot dot-warn dot-mini" id="sseDot" data-i18n-title="topbar.sse_pill_title" title="Realtime stream"></span>
         </button>
 
-        <button class="status-pill" id="rmpStatusPill" type="button" data-i18n-title="topbar.rmp_pill_title" title="Click to open ReMakePlace Live Sync controls">
+        <button class="status-pill" id="rmpStatusPill" type="button" data-i18n-title="topbar.rmp_pill_title" title="ReMakePlace Live Sync">
           <span class="dot dot-off" id="rmpStatusDot"></span>
           <span id="rmpStatusText" data-i18n="topbar.rmp_idle">RMP Idle</span>
-        </button>
-
-        <div class="sse-pill" id="sseStatusPill" data-i18n-title="topbar.sse_pill_title" title="Server realtime event stream status">
-          <span class="dot dot-warn" id="sseDot"></span>
-          <span id="sseStatusText" data-i18n="topbar.sse_connecting">Connecting stream...</span>
-        </div>
-
-        <button class="session-pill" id="activeSessionPill" type="button" data-i18n-title="topbar.session_pill_title" title="Click to select your currently active in-game estate">
-          <span class="session-pill-main" id="sessionPlayerText" data-i18n="topbar.session_waiting">Waiting for character login</span>
-          <span class="session-pill-sub" id="sessionEstateText" data-i18n="topbar.session_offline">Offline or outside an estate</span>
         </button>
       </div>
 
       <div class="topbar-actions">
-        <button class="btn btn-success btn-sm" id="btnUnlockAll" type="button" data-i18n="topbar.unlock_all" data-i18n-title="topbar.unlock_all_title" title="Unlock GM commands, Gil, Aetherytes, Quests, Orchestrion, and all jobs Lv100">Unlock All</button>
-        <button class="btn btn-secondary btn-sm" data-give-kit="indoor" type="button" data-i18n="topbar.kit_indoor">Indoor Kit</button>
-        <button class="btn btn-secondary btn-sm" data-give-kit="outdoor" type="button" data-i18n="topbar.kit_outdoor">Outdoor Kit</button>
-        <button class="btn btn-secondary btn-sm" data-give-kit="npc" type="button" data-i18n="topbar.kit_npc">NPC Kit</button>
+        <div class="menu-wrap" id="sessionMenuWrap">
+          <button class="session-pill" id="activeSessionPill" type="button" aria-haspopup="menu" aria-expanded="false" data-i18n-title="topbar.session_pill_title" title="Character">
+            <span class="session-pill-main" id="sessionPlayerText" data-i18n="topbar.session_waiting">Waiting for character login</span>
+            <span class="session-pill-sub" id="sessionEstateText" data-i18n="topbar.session_offline">Offline or outside an estate</span>
+            <span class="caret">▾</span>
+          </button>
+          <div class="menu-pop hidden" id="sessionMenu" role="menu">
+            <button class="menu-item" id="menuOpenCurrentEstate" type="button" role="menuitem" data-i18n="topbar.menu_open_estate">Open current estate</button>
+            <button class="menu-item" id="btnUnlockAll" type="button" role="menuitem" data-i18n="topbar.unlock_all" data-i18n-title="topbar.unlock_all_title" title="Unlock all">Unlock All</button>
+          </div>
+        </div>
         <button class="btn btn-ghost btn-sm" id="btnRefreshAll" type="button" data-i18n="topbar.refresh">Refresh</button>
-        <select class="locale-select" id="topbarLocaleSelect" data-i18n-title="desktop.ui_language" data-i18n-aria-label="desktop.ui_language" title="UI Language" aria-label="UI Language">
-          <option value="auto" data-i18n="desktop.lang_auto">Auto (System Locale)</option>
-          <option value="ko" data-locale-option="ko">Korean</option>
-          <option value="en" data-locale-option="en">English</option>
-          <option value="ja" data-locale-option="ja">Japanese</option>
-          <option value="de" data-locale-option="de">German</option>
-          <option value="fr" data-locale-option="fr">French</option>
-        </select>
         <button class="btn btn-pin btn-sm" id="btnPinAlwaysOnTop" type="button" aria-pressed="false" data-i18n="topbar.pin_unpinned" title="Pin window always on top">Always on Top</button>
       </div>
     </header>
 
     <div class="workspace">
-      <!-- Left Sidebar Navigation & Pinned Active Selection -->
+      <!-- Sidebar -->
       <aside class="sidebar">
         <nav class="nav-list" data-i18n-aria-label="nav.aria_label" aria-label="Primary Navigation">
-          <button class="nav-item active" data-tab="launcher" type="button">
-            <span data-i18n="nav.launcher">Launcher · Sync</span>
-            <span class="nav-count" id="navCountLauncher">OFF</span>
+          <button class="nav-item active" data-tab="home" type="button">
+            <span data-i18n="nav.home">Home</span>
           </button>
+
+          <div class="nav-group-label" data-i18n="nav.group_housing">Housing</div>
           <button class="nav-item" data-tab="estates" type="button">
             <span data-i18n="nav.estates">Estates</span>
             <span class="nav-count" id="navCountEstates">0</span>
           </button>
           <button class="nav-item" data-tab="presets" type="button">
-            <span data-i18n="nav.presets">Presets Library</span>
+            <span data-i18n="nav.presets">Presets</span>
             <span class="nav-count" id="navCountPresets">0</span>
-          </button>
-          <button class="nav-item" data-tab="furniture" type="button">
-            <span data-i18n="nav.furniture">Furniture Inspector</span>
-            <span class="nav-count" id="navCountFurniture">0</span>
-          </button>
-          <button class="nav-item" data-tab="environment" type="button">
-            <span data-i18n="nav.environment">Environment · Snapshots</span>
-            <span class="nav-count" id="navCountSnapshots">0</span>
-          </button>
-          <button class="nav-item" data-tab="logs" type="button">
-            <span data-i18n="nav.logs">Live Logs</span>
-            <span class="nav-count" id="navCountLogs">0</span>
           </button>
         </nav>
 
-        <section class="selected-card" id="sidebarSelectedCard">
-          <div class="selected-card-header">
-            <span class="eyebrow" data-i18n="sidebar.target_eyebrow">Selected Target Estate</span>
-            <span class="badge badge-accent" id="sidebarSizeBadge" data-i18n="sidebar.unselected_badge">None</span>
-          </div>
-          <h2 class="selected-title" id="sidebarEstateTitle" data-i18n="sidebar.unselected_title">Select an Estate</h2>
-          <p class="selected-sub" id="sidebarEstateSub" data-i18n="sidebar.unselected_sub">Select an estate from Estates to enable detailed controls and preset actions.</p>
-          <div class="selected-stats" id="sidebarEstateStats"></div>
-          <div class="selected-actions">
-            <button class="btn btn-primary btn-sm" id="sidebarBtnEnter" type="button" disabled data-i18n="sidebar.enter">Enter Interior</button>
-            <button class="btn btn-secondary btn-sm" id="sidebarBtnExit" type="button" disabled data-i18n="sidebar.exit">Go to Front Door</button>
-            <button class="btn btn-secondary btn-sm" id="sidebarBtnReload" type="button" disabled data-i18n="sidebar.reload">Force Reload</button>
-            <button class="btn btn-secondary btn-sm" id="sidebarBtnUndo" type="button" disabled data-i18n="sidebar.undo">Undo</button>
-          </div>
-        </section>
+        <nav class="nav-list nav-list-bottom" aria-label="System">
+          <button class="nav-item" data-tab="runtime" type="button">
+            <span data-i18n="nav.runtime">Runtime</span>
+            <span class="nav-count nav-alert hidden" id="navBadgeRuntime">!</span>
+          </button>
+          <button class="nav-item" data-tab="settings" type="button">
+            <span data-i18n="nav.settings">Settings</span>
+          </button>
+          <button class="nav-item" data-tab="logs" type="button">
+            <span data-i18n="nav.logs">Logs</span>
+            <span class="nav-count" id="navCountLogs">0</span>
+          </button>
+        </nav>
       </aside>
 
-      <!-- Main Tab Views -->
       <main class="main-pane">
-        <!-- VIEW 0: LAUNCHER, RMP LIVE SYNC & FOUNDATION SERVER -->
-        <section class="tab-view active" id="view-launcher">
-          <div class="view-header">
-            <div>
-              <h1 data-i18n="launcher.title">Launcher · Live Sync · Server Control</h1>
-              <p class="muted" data-i18n="launcher.subtitle">Manage your local Foundation server, FFXIV direct launch, and zero-touch shadow ReMakePlace sync in one window.</p>
+        <!-- ================= HOME ================= -->
+        <section class="tab-view active" id="view-home">
+          <!-- A. Onboarding (shown until required runtime is ready) -->
+          <div class="onboarding hidden" id="homeOnboarding">
+            <div class="view-header">
+              <div>
+                <h1 data-i18n="home.onb_title">Get started with Foundation Studio</h1>
+                <p class="muted" data-i18n="home.onb_sub">Three steps and you are ready to play.</p>
+              </div>
             </div>
-            <div class="view-header-actions">
-              <button class="btn btn-secondary btn-sm" id="btnSaveLauncherSettings" type="button" data-i18n="launcher.save_settings">Save Settings</button>
+
+            <ol class="onb-steps">
+              <li class="onb-step" id="onbStepGame">
+                <div class="onb-step-head">
+                  <span class="onb-num">1</span>
+                  <div>
+                    <strong data-i18n="home.onb_step_game">Game folder</strong>
+                    <div class="muted small-text" data-i18n="home.onb_step_game_desc">Select ffxiv_dx11.exe or the game install folder.</div>
+                  </div>
+                  <span class="badge badge-muted" id="onbStateGame">-</span>
+                </div>
+                <div class="input-with-btn">
+                  <input id="onbGamePath" type="text" placeholder="D:\SquareEnix\FINAL FANTASY XIV - A Realm Reborn\game\ffxiv_dx11.exe" />
+                  <button class="btn btn-secondary btn-sm" id="btnOnbBrowseGame" type="button" data-i18n="launcher.browse">Browse</button>
+                </div>
+              </li>
+
+              <li class="onb-step" id="onbStepRuntime">
+                <div class="onb-step-head">
+                  <span class="onb-num">2</span>
+                  <div>
+                    <strong data-i18n="home.onb_step_runtime">Required components</strong>
+                    <div class="muted small-text" data-i18n="home.onb_step_runtime_desc">Foundation server, Oodle DLL, and server config, downloaded from official releases.</div>
+                  </div>
+                  <span class="badge badge-muted" id="onbStateRuntime">-</span>
+                </div>
+                <div class="button-row">
+                  <button class="btn btn-primary btn-sm" id="btnOnbInstall" type="button" data-i18n="home.onb_install">Install</button>
+                </div>
+                <div class="setup-progress hidden js-setup-progress">
+                  <div class="setup-progress-track"><div class="setup-progress-fill js-setup-progress-bar"></div></div>
+                  <div class="muted small-text js-setup-progress-text"></div>
+                </div>
+              </li>
+
+              <li class="onb-step" id="onbStepRmp">
+                <div class="onb-step-head">
+                  <span class="onb-num">3</span>
+                  <div>
+                    <strong data-i18n="home.onb_step_rmp">ReMakePlace (optional)</strong>
+                    <div class="muted small-text" data-i18n="home.onb_step_rmp_desc">Needed only for ReMakePlace Live Sync. You can set it up later in Runtime.</div>
+                  </div>
+                  <span class="badge badge-muted" id="onbStateRmp">-</span>
+                </div>
+                <div class="input-with-btn">
+                  <input id="onbRmpDir" type="text" placeholder="D:\ReMakePlace" />
+                  <button class="btn btn-secondary btn-sm" id="btnOnbBrowseRmpDir" type="button" data-i18n="launcher.browse">Browse</button>
+                </div>
+                <div class="button-row">
+                  <button class="btn btn-secondary btn-sm" id="btnOnbRmpInstall" type="button" data-i18n="home.onb_rmp_install">Install here</button>
+                  <button class="btn btn-ghost btn-sm" id="btnOnbRmpExisting" type="button" data-i18n="home.onb_rmp_existing">Use existing install</button>
+                </div>
+              </li>
+            </ol>
+
+            <div class="onb-footer">
+              <span class="muted small-text" id="onbFooterHint" data-i18n="home.onb_start_hint">Install the required components to continue.</span>
+              <button class="btn btn-primary" id="btnOnbStart" type="button" disabled data-i18n="home.onb_start">Get Started</button>
             </div>
           </div>
 
-          <div class="launcher-grid">
-            <!-- Left Column: Game Launcher -->
-            <div class="stack">
-              <div class="panel">
+          <!-- B/C. Ready & Running -->
+          <div class="home-main" id="homeMain">
+            <div class="play-flow">
+              <div class="panel play-card" id="homeServerCard">
                 <div class="panel-header">
-                  <h3 data-i18n="launcher.card_title">FFXIV Direct Client Launcher</h3>
-                  <span class="badge badge-muted" data-i18n="launcher.card_badge">Kawari Direct Launch Protocol</span>
+                  <h3 data-i18n="home.step_server">1. Server</h3>
+                  <span class="badge badge-muted" id="srvStatusBadge" data-i18n="server.badge_checking">Checking</span>
                 </div>
-
-                <label class="field">
-                  <span data-i18n="launcher.server_url">Foundation Server URL</span>
-                  <div class="input-with-btn">
-                    <input id="launcherServerUrl" type="text" placeholder="http://127.0.0.1:21062" />
-                    <button class="btn btn-secondary btn-sm" id="btnCheckKawari" type="button" data-i18n="launcher.check_btn">Check</button>
-                  </div>
-                </label>
-
-                <label class="field">
-                  <span data-i18n="launcher.game_path">Game Path (ffxiv_dx11.exe or install root)</span>
-                  <div class="input-with-btn">
-                    <input id="launcherGamePath" type="text" placeholder="D:\SquareEnix\...\game\ffxiv_dx11.exe" />
-                    <button class="btn btn-secondary btn-sm" id="btnBrowseGamePath" type="button" data-i18n="launcher.browse">Browse</button>
-                  </div>
-                </label>
-
-                <div class="form-grid form-grid-2">
-                  <label class="field">
-                    <span data-i18n="launcher.username">Username (ID)</span>
-                    <input id="launcherUsername" type="text" autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span data-i18n="launcher.password">Password (Windows DPAPI encrypted)</span>
-                    <input id="launcherPassword" type="password" autocomplete="off" />
-                  </label>
+                <div class="button-row">
+                  <button class="btn btn-success" id="btnServerStart" type="button" data-i18n="server.start">Start Server</button>
+                  <button class="btn btn-danger btn-sm" id="btnServerStop" type="button" disabled data-i18n="server.stop">Stop Server</button>
                 </div>
+                <div class="preflight-list hidden" id="srvPreflightBox"></div>
+              </div>
 
-                <div class="form-grid form-grid-2">
-                  <label class="field">
-                    <span data-i18n="launcher.version">Game Version (ffxivgame.ver)</span>
-                    <div class="input-with-btn">
-                      <input id="launcherVersion" type="text" placeholder="e.g. 2026.11.03.0000.0000" />
-                      <button class="btn btn-secondary btn-sm" id="btnRefreshLauncher" type="button" data-i18n="launcher.refresh">Refresh</button>
-                    </div>
-                  </label>
-                  <label class="field">
-                    <span data-i18n="launcher.language">Client Language</span>
-                    <select id="launcherLanguage">
-                      <option value="0">Japanese (0)</option>
-                      <option value="1">English (1)</option>
-                      <option value="2">German (2)</option>
-                      <option value="3">French (3)</option>
-                    </select>
-                  </label>
+              <div class="play-arrow" aria-hidden="true">→</div>
+
+              <div class="panel play-card" id="homeGameCard">
+                <div class="panel-header">
+                  <h3 data-i18n="home.step_game">2. Game</h3>
+                  <span class="badge badge-muted" id="homeGameBadge">-</span>
                 </div>
-
-                <div class="form-grid form-grid-2">
-                  <label class="field">
-                    <span data-i18n="launcher.expansion">Max Expansion</span>
-                    <select id="launcherExpansion">
-                      <option value="0" data-i18n="game.expansions.0">A Realm Reborn (0)</option>
-                      <option value="1" data-i18n="game.expansions.1">Heavensward (1)</option>
-                      <option value="2" data-i18n="game.expansions.2">Stormblood (2)</option>
-                      <option value="3" data-i18n="game.expansions.3">Shadowbringers (3)</option>
-                      <option value="4" data-i18n="game.expansions.4">Endwalker (4)</option>
-                      <option value="5" selected data-i18n="game.expansions.5">Dawntrail (5)</option>
-                    </select>
-                  </label>
-                  <label class="field">
-                    <span data-i18n="launcher.extra_args">Extra Launch Arguments</span>
-                    <input id="launcherExtraArgs" type="text" data-i18n-placeholder="launcher.extra_args_placeholder" placeholder="Optional" />
-                  </label>
-                </div>
-
-                <div class="inline-options">
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="launcherFrontierCheck" checked />
-                    <span data-i18n="launcher.frontier_host">Include Frontier host</span>
-                  </label>
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="launcherOpenDashboardCheck" checked />
-                    <span data-i18n="launcher.open_dashboard">Switch to Estates tab on launch</span>
-                  </label>
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="launcherCloseOnLaunchCheck" />
-                    <span data-i18n="launcher.close_on_launch">Close after launch (or hide to tray if active)</span>
-                  </label>
-                </div>
-
                 <div class="button-row">
                   <button class="btn btn-primary" id="btnLaunchGame" type="button" data-i18n="launcher.launch_btn">Launch Game</button>
                 </div>
-              </div>
-
-              <div class="panel">
-                <div class="panel-header">
-                  <h3 data-i18n="launcher.endpoints_title">Resolved Endpoints &amp; Launcher Status</h3>
-                </div>
-                <div class="stack">
-                  <pre class="mono-box" id="launcherEndpointsBox" data-i18n="launcher.endpoints_empty">Not checked yet.</pre>
-                  <pre class="mono-box launcher-log-box" id="launcherStatusLog"></pre>
-                </div>
+                <button class="link-btn" id="btnHomeAdvancedLaunch" type="button" data-i18n="home.advanced_launch">Advanced launch options</button>
               </div>
             </div>
 
-            <!-- Right Column: RMP Live Sync, Foundation Server, Desktop Prefs -->
-            <div class="stack">
+            <div class="home-grid">
+              <div class="panel" id="homeCurrentCard">
+                <div class="panel-header">
+                  <h3 data-i18n="home.current_title">Where you are</h3>
+                </div>
+                <p class="home-current-text" id="homeCurrentText" data-i18n="home.current_none">Enter a house in-game and it will show up here.</p>
+                <div class="button-row">
+                  <button class="btn btn-primary btn-sm hidden" id="btnHomeOpenCurrent" type="button" data-i18n="home.current_open">Decorate this house →</button>
+                </div>
+              </div>
+
               <div class="panel">
                 <div class="panel-header">
                   <div>
                     <h3 data-i18n="rmp.title">ReMakePlace Live Sync</h3>
-                    <span class="muted small-text" data-i18n="rmp.subtitle">Zero-touch shadow runtime via RE-UE4SS + in-process relay</span>
+                    <span class="muted small-text" id="homeRmpPath" data-i18n="home.rmp_path_none">ReMakePlace folder not set</span>
                   </div>
                   <span class="badge badge-muted" id="rmpBadge" data-i18n="rmp.badge_idle">Idle</span>
                 </div>
-
-                <label class="field">
-                  <span data-i18n="rmp.path_label">ReMakePlace Path (MakePlace-Win64-Shipping.exe or root folder)</span>
-                  <div class="input-with-btn">
-                    <input id="rmpPathInput" type="text" placeholder="D:\ReMakePlace_Latest" />
-                    <button class="btn btn-secondary btn-sm" id="btnBrowseRmpPath" type="button" data-i18n="launcher.browse">Browse</button>
-                  </div>
-                </label>
-
                 <div class="rmp-telemetry-grid">
                   <div class="telemetry-cell">
                     <div class="telemetry-label" data-i18n="rmp.tele_hooks">Phase / Hooks</div>
@@ -261,583 +222,375 @@
                     <div class="telemetry-value" id="rmpTeleCounters">0 / 0 / 0</div>
                   </div>
                 </div>
-
                 <div class="preflight-list hidden" id="rmpLastError"></div>
-
                 <div class="button-row">
                   <button class="btn btn-primary" id="btnToggleRmpSync" type="button" data-i18n="rmp.btn_start">Start ReMakePlace Live Sync</button>
                 </div>
               </div>
+            </div>
 
-              <div class="panel">
-                <div class="panel-header">
-                  <div>
-                    <h3 data-i18n="setup.title">Runtime Setup · Official Auto-Installer</h3>
-                    <span class="muted small-text" data-i18n="setup.subtitle">Automatically download &amp; verify required binaries from official GitHub Releases</span>
-                  </div>
-                  <span class="badge badge-muted" id="setupBadgeOverall" data-i18n="server.badge_checking">Checking</span>
-                </div>
-
-                <details id="setupDetails" open>
-                  <summary class="details-summary">
-                    <span id="setupSummaryPath" class="mono-inline"></span>
-                  </summary>
-
-                  <div class="setup-checklist">
-                    <div class="setup-row">
-                      <div class="setup-row-info">
-                        <strong data-i18n="setup.comp_foundation">Foundation Server</strong>
-                        <span class="muted small-text" data-i18n="setup.comp_foundation_src">bloooowfish/Foundation (Windows x64 Release)</span>
-                      </div>
-                      <div class="setup-row-actions">
-                        <span class="badge badge-muted" id="setupStateFoundation" data-i18n="server.badge_checking">Checking</span>
-                        <button class="btn btn-secondary btn-xs" data-setup-install="foundation" type="button" data-i18n="setup.btn_install_one">Install</button>
-                      </div>
-                    </div>
-
-                    <div class="setup-row">
-                      <div class="setup-row-info">
-                        <strong data-i18n="setup.comp_oodle">Oodle Network DLL</strong>
-                        <span class="muted small-text" data-i18n="setup.comp_oodle_src">WorkingRobot/OodleUE (official msvc-x64 release)</span>
-                      </div>
-                      <div class="setup-row-actions">
-                        <span class="badge badge-muted" id="setupStateOodle" data-i18n="server.badge_checking">Checking</span>
-                        <button class="btn btn-secondary btn-xs" data-setup-install="oodle" type="button" data-i18n="setup.btn_install_one">Install</button>
-                      </div>
-                    </div>
-
-                    <div class="setup-row">
-                      <div class="setup-row-info">
-                        <strong data-i18n="setup.comp_bridge">rmp-bridge Scripts &amp; Mods</strong>
-                        <span class="muted small-text" data-i18n="setup.comp_bridge_src">bloooowfish/rmp-bridge</span>
-                      </div>
-                      <div class="setup-row-actions">
-                        <span class="badge badge-muted" id="setupStateBridge" data-i18n="server.badge_checking">Checking</span>
-                        <button class="btn btn-secondary btn-xs" data-setup-install="rmp_bridge" type="button" data-i18n="setup.btn_install_one">Install</button>
-                      </div>
-                    </div>
-
-                    <div class="setup-row">
-                      <div class="setup-row-info">
-                        <strong data-i18n="setup.comp_ue4ss">RE-UE4SS v4.0.0</strong>
-                        <span class="muted small-text" data-i18n="setup.comp_ue4ss_src">UE4SS-RE/RE-UE4SS (MIT, SHA-256 verified)</span>
-                      </div>
-                      <div class="setup-row-actions">
-                        <span class="badge badge-muted" id="setupStateUe4ss" data-i18n="server.badge_checking">Checking</span>
-                        <button class="btn btn-secondary btn-xs" data-setup-install="ue4ss" type="button" data-i18n="setup.btn_install_one">Install</button>
-                      </div>
-                    </div>
-
-                    <div class="setup-row">
-                      <div class="setup-row-info">
-                        <strong data-i18n="setup.comp_config">Server Config (config.yaml)</strong>
-                        <span class="muted small-text" data-i18n="setup.comp_config_src">Generated from FFXIV client Game Path</span>
-                      </div>
-                      <div class="setup-row-actions">
-                        <span class="badge badge-muted" id="setupStateConfig" data-i18n="server.badge_checking">Checking</span>
-                        <button class="btn btn-secondary btn-xs" id="btnSetupGenerateConfig" type="button" data-i18n="setup.btn_generate_cfg">Generate</button>
-                      </div>
-                    </div>
-
-                    <div class="setup-row">
-                      <div class="setup-row-info">
-                        <strong data-i18n="setup.comp_rmp">ReMakePlace (Optional)</strong>
-                        <span class="muted small-text" data-i18n="setup.comp_rmp_src">RemakePlace/app (configure local path)</span>
-                      </div>
-                      <div class="setup-row-actions">
-                        <span class="badge badge-muted" id="setupStateRmp" data-i18n="server.badge_checking">Checking</span>
-                        <button class="btn btn-ghost btn-xs" id="btnOpenRemakePlaceRelease" type="button" data-i18n="setup.btn_open_release">Releases</button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="inline-options" style="margin-top: 8px;">
-                    <label class="checkbox-label">
-                      <input type="checkbox" id="setupUseManagedDirCheck" />
-                      <span data-i18n="setup.use_managed_dir">Install into Foundation Studio managed runtime folder (%LocalAppData%)</span>
-                    </label>
-                  </div>
-
-                  <div class="setup-progress hidden" id="setupProgressWrap">
-                    <div class="setup-progress-track">
-                      <div class="setup-progress-fill" id="setupProgressBar"></div>
-                    </div>
-                    <div class="muted small-text" id="setupProgressText"></div>
-                  </div>
-
-                  <div class="button-row" style="margin-top: 8px;">
-                    <button class="btn btn-primary btn-sm" id="btnSetupInstallAll" type="button" data-i18n="setup.btn_install_all">Install / Repair Missing</button>
-                    <button class="btn btn-secondary btn-sm" id="btnSetupRefresh" type="button" data-i18n="setup.btn_refresh">Check</button>
-                  </div>
-                </details>
+            <div class="panel">
+              <div class="panel-header">
+                <h3 data-i18n="home.recent_title">Recent estates</h3>
+                <button class="btn btn-ghost btn-xs" id="btnHomeNewEstate" type="button" data-i18n="home.new_estate">+ New estate</button>
               </div>
+              <div class="recent-list" id="homeRecentEstates"></div>
+            </div>
+          </div>
+        </section>
 
-              <div class="panel">
-                <div class="panel-header">
-                  <div>
-                    <h3 data-i18n="server.title">Foundation Local Server Control</h3>
-                    <span class="muted small-text" data-i18n="server.subtitle">Safely manage server processes via Windows Job Object (no orphaned processes)</span>
-                  </div>
-                  <span class="badge badge-muted" id="srvStatusBadge" data-i18n="server.badge_checking">Checking</span>
-                </div>
-
-                <div class="form-grid form-grid-2">
-                  <label class="field">
-                    <span data-i18n="server.root_label">Foundation Root Folder (containing config.yaml)</span>
-                    <div class="input-with-btn">
-                      <input id="srvFoundationRoot" type="text" placeholder="E:\FF14\Repos\PrivateTest\Foundation" />
-                      <button class="btn btn-secondary btn-sm" id="btnBrowseFoundationRoot" type="button" data-i18n="launcher.browse">Browse</button>
-                    </div>
-                  </label>
-                  <label class="field">
-                    <span data-i18n="server.profile_label">Build Profile</span>
-                    <select id="srvProfileSelect">
-                      <option value="debug" selected data-i18n="server.profile_debug">debug (target\debug)</option>
-                      <option value="release" data-i18n="server.profile_release">release (target\release)</option>
-                      <option value="prebuilt" data-i18n="server.profile_prebuilt">prebuilt (flat binaries)</option>
-                    </select>
-                  </label>
-                </div>
-
-                <div class="button-row">
-                  <button class="btn btn-success btn-sm" id="btnServerStart" type="button" data-i18n="server.start">Start Server</button>
-                  <button class="btn btn-danger btn-sm" id="btnServerStop" type="button" disabled data-i18n="server.stop">Stop Server</button>
-                  <button class="btn btn-secondary btn-sm" id="btnServerRefresh" type="button" data-i18n="server.recheck">Re-check Status</button>
-                </div>
-
-                <div class="preflight-list hidden" id="srvPreflightBox"></div>
-
-                <details id="srvConsoleDetails" style="margin-top: 10px;">
-                  <summary class="details-summary" data-i18n="server.console_toggle">View Server Console Output</summary>
-                  <div class="button-row" style="margin-top: 8px; justify-content: flex-end;">
-                    <button class="btn btn-ghost btn-xs" id="btnClearServerLogs" type="button" data-i18n="server.console_clear">Clear Console</button>
-                  </div>
-                  <pre class="mono-box server-console-box" id="srvConsoleLogs" data-i18n="server.console_empty">No managed server output yet.</pre>
-                </details>
+        <!-- ================= ESTATES (list + detail) ================= -->
+        <section class="tab-view" id="view-estates">
+          <!-- List -->
+          <div id="estatesListView">
+            <div class="view-header">
+              <div>
+                <h1 data-i18n="estates.title">Estates</h1>
+                <p class="muted" data-i18n="estates.subtitle">Search, filter, bookmark, create, and warp between test houses and apartments.</p>
               </div>
+              <div class="view-header-actions">
+                <button class="btn btn-primary" id="btnToggleCreateEstate" type="button" data-i18n="estates.toggle_create">+ Create / Warp Estate</button>
+              </div>
+            </div>
 
-              <div class="panel">
-                <div class="panel-header">
-                  <h3 data-i18n="desktop.title">Desktop Window · Language · Hotkey</h3>
-                </div>
+            <div class="panel hidden" id="createEstatePanel">
+              <div class="panel-header">
+                <h3 data-i18n="estates.create_panel_title">Create or Warp to House / Apartment</h3>
+                <button class="btn btn-ghost btn-xs" id="btnCloseCreateEstate" type="button" data-i18n="estates.close">Close</button>
+              </div>
+              <div class="form-grid form-grid-4">
                 <label class="field">
-                  <span data-i18n="desktop.ui_language">UI Language</span>
-                  <select id="prefUiLocaleSelect">
-                    <option value="auto" data-i18n="desktop.lang_auto">Auto (System Locale)</option>
-                    <option value="ko" data-locale-option="ko">Korean</option>
-                    <option value="en" data-locale-option="en">English</option>
-                    <option value="ja" data-locale-option="ja">Japanese</option>
-                    <option value="de" data-locale-option="de">German</option>
-                    <option value="fr" data-locale-option="fr">French</option>
+                  <span data-i18n="estates.district">Housing District</span>
+                  <select id="createDistrict">
+                    <option value="mist" data-i18n="game.districts.339">Mist</option>
+                    <option value="lavender" selected data-i18n="game.districts.340">The Lavender Beds</option>
+                    <option value="goblet" data-i18n="game.districts.341">The Goblet</option>
+                    <option value="shirogane" data-i18n="game.districts.641">Shirogane</option>
+                    <option value="empyreum" data-i18n="game.districts.979">Empyreum</option>
                   </select>
                 </label>
                 <label class="field">
-                  <span data-i18n="desktop.shortcut_label">Global Show/Hide Hotkey</span>
-                  <div class="input-with-btn">
-                    <input id="prefShortcutInput" type="text" placeholder="Ctrl+Shift+H" />
-                    <button class="btn btn-secondary btn-sm" id="btnApplyShortcut" type="button" data-i18n="desktop.shortcut_apply">Apply Hotkey</button>
+                  <span data-i18n="estates.division">Division</span>
+                  <select id="createDivision">
+                    <option value="0" selected data-i18n="game.location.main_division">Main Ward</option>
+                    <option value="1" data-i18n="game.location.subdivision">Subdivision</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span data-i18n="estates.size_type">Size / Type</span>
+                  <select id="createSize">
+                    <option value="0" data-i18n="game.sizes.small">Small</option>
+                    <option value="1" data-i18n="game.sizes.medium">Medium</option>
+                    <option value="2" selected data-i18n="game.sizes.large">Large</option>
+                    <option value="apartment" data-i18n="game.sizes.apartment">Apartment</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span data-i18n="estates.ward">Ward (1–30)</span>
+                  <input id="createWard" type="number" min="1" max="30" value="1" />
+                </label>
+                <label class="field">
+                  <span data-i18n="estates.plot_or_room">Plot / Room (Optional)</span>
+                  <input id="createPlotOrRoom" type="number" min="1" max="90" data-i18n-placeholder="estates.plot_placeholder" placeholder="Auto-pick for size if blank" />
+                </label>
+                <label class="field">
+                  <span data-i18n="estates.estate_name">Estate Name (Optional)</span>
+                  <input id="createEstateName" type="text" maxlength="40" data-i18n-placeholder="estates.estate_name_placeholder" placeholder="Max 20 UTF-8 bytes" />
+                </label>
+                <label class="field">
+                  <span data-i18n="estates.owner_name">Owner Name (Optional)</span>
+                  <input id="createOwnerName" type="text" maxlength="30" data-i18n-placeholder="estates.owner_name_placeholder" placeholder="Defaults to active character / Simulator" />
+                </label>
+                <div class="field-actions">
+                  <button class="btn btn-secondary" id="btnCreateEnsureOnly" type="button" data-i18n="estates.btn_ensure_only">Create Only</button>
+                  <button class="btn btn-success" id="btnCreateAndEnter" type="button" data-i18n="estates.btn_create_enter">Create &amp; Enter</button>
+                  <button class="btn btn-primary" id="btnCreateAndOutside" type="button" data-i18n="estates.btn_create_outside">Warp Outside</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="toolbar">
+              <input class="search-input" id="estatesSearchInput" type="search" data-i18n-placeholder="estates.search_placeholder" placeholder="Search name, owner, district, ward/plot, memo, land_ident..." />
+              <select id="estatesDistrictFilter">
+                <option value="all" data-i18n="estates.filter_all_districts">All Districts</option>
+                <option value="339" data-i18n="game.districts.339">Mist</option>
+                <option value="340" data-i18n="game.districts.340">The Lavender Beds</option>
+                <option value="341" data-i18n="game.districts.341">The Goblet</option>
+                <option value="641" data-i18n="game.districts.641">Shirogane</option>
+                <option value="979" data-i18n="game.districts.979">Empyreum</option>
+              </select>
+              <select id="estatesSizeFilter">
+                <option value="all" data-i18n="estates.filter_all_sizes">All Sizes</option>
+                <option value="0" data-i18n="game.sizes.small">Small</option>
+                <option value="1" data-i18n="game.sizes.medium">Medium</option>
+                <option value="2" data-i18n="game.sizes.large">Large</option>
+                <option value="apartment" data-i18n="game.sizes.apartment">Apartment</option>
+              </select>
+              <select id="estatesSortSelect">
+                <option value="updated" data-i18n="estates.sort_updated">Recently Updated</option>
+                <option value="location" data-i18n="estates.sort_location">District · Ward · Plot</option>
+                <option value="name" data-i18n="estates.sort_name">Name</option>
+                <option value="furniture" data-i18n="estates.sort_furniture">Most Furniture</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" id="btnEstatesFavOnly" type="button" aria-pressed="false" data-i18n="estates.fav_only">★ Favorites</button>
+              <div class="segmented" role="group" aria-label="View mode">
+                <button class="seg-btn active" id="btnViewCards" type="button" data-i18n="estates.view_cards">Cards</button>
+                <button class="seg-btn" id="btnViewTable" type="button" data-i18n="estates.view_table">Table</button>
+              </div>
+            </div>
+
+            <div id="estatesContainer" class="estates-grid"></div>
+          </div>
+
+          <!-- Detail -->
+          <div class="hidden" id="estateDetailView">
+            <div class="detail-header">
+              <button class="btn btn-ghost btn-sm" id="btnDetailBack" type="button" data-i18n="detail.back">← Estates</button>
+              <div class="detail-title-wrap">
+                <div class="detail-title-row">
+                  <h1 id="detailTitle" data-i18n="detail.empty">Select an estate</h1>
+                  <span class="badge badge-accent" id="detailSizeBadge">-</span>
+                  <span class="badge badge-success hidden" id="detailOnlineBadge" data-i18n="estates.online_badge">Online</span>
+                </div>
+                <div class="muted small-text" id="detailSub"></div>
+              </div>
+              <div class="view-header-actions">
+                <button class="btn btn-primary btn-sm" id="detailBtnEnter" type="button" disabled data-i18n="sidebar.enter">Enter Interior</button>
+                <button class="btn btn-secondary btn-sm" id="detailBtnExit" type="button" disabled data-i18n="sidebar.exit">Go to Front Door</button>
+                <button class="btn btn-secondary btn-sm" id="detailBtnReload" type="button" disabled data-i18n="sidebar.reload">Force Reload</button>
+              </div>
+            </div>
+
+            <div class="subtabs" role="tablist" id="detailSubtabs">
+              <button class="subtab active" data-subtab="overview" type="button" data-i18n="detail.tab_overview">Overview</button>
+              <button class="subtab" data-subtab="decorate" type="button" data-i18n="detail.tab_decorate">Decorate</button>
+              <button class="subtab" data-subtab="furniture" type="button">
+                <span data-i18n="detail.tab_furniture">Furniture</span>
+                <span class="nav-count" id="navCountFurniture">0</span>
+              </button>
+              <button class="subtab" data-subtab="environment" type="button" data-i18n="detail.tab_environment">Environment</button>
+              <button class="subtab" data-subtab="history" type="button">
+                <span data-i18n="detail.tab_history">History</span>
+                <span class="nav-count" id="navCountSnapshots">0</span>
+              </button>
+            </div>
+
+            <!-- Overview -->
+            <div class="subview active" id="subview-overview">
+              <div class="env-grid">
+                <div class="panel">
+                  <div class="panel-header">
+                    <h3 data-i18n="env.meta_card_title">Estate Name · Greeting · Local Memo</h3>
                   </div>
-                </label>
-                <div class="inline-options">
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="prefAlwaysOnTopCheck" />
-                    <span data-i18n="desktop.always_on_top">Pin window always on top</span>
-                  </label>
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="prefMinimizeToTrayCheck" checked />
-                    <span data-i18n="desktop.minimize_to_tray">Minimize to tray on close when RMP/Server is active</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- VIEW 1: ESTATES MANAGER -->
-        <section class="tab-view" id="view-estates">
-          <div class="view-header">
-            <div>
-              <h1 data-i18n="estates.title">Estates Manager</h1>
-              <p class="muted" data-i18n="estates.subtitle">Search, filter, bookmark, create, and warp between test houses and apartments.</p>
-            </div>
-            <div class="view-header-actions">
-              <button class="btn btn-primary" id="btnToggleCreateEstate" type="button" data-i18n="estates.toggle_create">+ Create / Warp Estate</button>
-            </div>
-          </div>
-
-          <div class="panel hidden" id="createEstatePanel">
-            <div class="panel-header">
-              <h3 data-i18n="estates.create_panel_title">Create or Warp to House / Apartment</h3>
-              <button class="btn btn-ghost btn-xs" id="btnCloseCreateEstate" type="button" data-i18n="estates.close">Close</button>
-            </div>
-            <div class="form-grid form-grid-4">
-              <label class="field">
-                <span data-i18n="estates.district">Housing District</span>
-                <select id="createDistrict">
-                  <option value="mist" data-i18n="game.districts.339">Mist</option>
-                  <option value="lavender" selected data-i18n="game.districts.340">The Lavender Beds</option>
-                  <option value="goblet" data-i18n="game.districts.341">The Goblet</option>
-                  <option value="shirogane" data-i18n="game.districts.641">Shirogane</option>
-                  <option value="empyreum" data-i18n="game.districts.979">Empyreum</option>
-                </select>
-              </label>
-              <label class="field">
-                <span data-i18n="estates.division">Division</span>
-                <select id="createDivision">
-                  <option value="0" selected data-i18n="game.location.main_division">Main Ward</option>
-                  <option value="1" data-i18n="game.location.subdivision">Subdivision</option>
-                </select>
-              </label>
-              <label class="field">
-                <span data-i18n="estates.size_type">Size / Type</span>
-                <select id="createSize">
-                  <option value="0" data-i18n="game.sizes.small">Small</option>
-                  <option value="1" data-i18n="game.sizes.medium">Medium</option>
-                  <option value="2" selected data-i18n="game.sizes.large">Large</option>
-                  <option value="apartment" data-i18n="game.sizes.apartment">Apartment</option>
-                </select>
-              </label>
-              <label class="field">
-                <span data-i18n="estates.ward">Ward (1–30)</span>
-                <input id="createWard" type="number" min="1" max="30" value="1" />
-              </label>
-              <label class="field">
-                <span data-i18n="estates.plot_or_room">Plot / Room (Optional)</span>
-                <input id="createPlotOrRoom" type="number" min="1" max="90" data-i18n-placeholder="estates.plot_placeholder" placeholder="Auto-pick for size if blank" />
-              </label>
-              <label class="field">
-                <span data-i18n="estates.estate_name">Estate Name (Optional)</span>
-                <input id="createEstateName" type="text" maxlength="40" data-i18n-placeholder="estates.estate_name_placeholder" placeholder="Max 20 UTF-8 bytes" />
-              </label>
-              <label class="field">
-                <span data-i18n="estates.owner_name">Owner Name (Optional)</span>
-                <input id="createOwnerName" type="text" maxlength="30" data-i18n-placeholder="estates.owner_name_placeholder" placeholder="Defaults to active character / Simulator" />
-              </label>
-              <div class="field-actions">
-                <button class="btn btn-secondary" id="btnCreateEnsureOnly" type="button" data-i18n="estates.btn_ensure_only">Create Only</button>
-                <button class="btn btn-success" id="btnCreateAndEnter" type="button" data-i18n="estates.btn_create_enter">Create &amp; Enter</button>
-                <button class="btn btn-primary" id="btnCreateAndOutside" type="button" data-i18n="estates.btn_create_outside">Warp Outside</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="toolbar">
-            <input class="search-input" id="estatesSearchInput" type="search" data-i18n-placeholder="estates.search_placeholder" placeholder="Search name, owner, district, ward/plot, memo, land_ident..." />
-            <select id="estatesDistrictFilter">
-              <option value="all" data-i18n="estates.filter_all_districts">All Districts</option>
-              <option value="339" data-i18n="game.districts.339">Mist</option>
-              <option value="340" data-i18n="game.districts.340">The Lavender Beds</option>
-              <option value="341" data-i18n="game.districts.341">The Goblet</option>
-              <option value="641" data-i18n="game.districts.641">Shirogane</option>
-              <option value="979" data-i18n="game.districts.979">Empyreum</option>
-            </select>
-            <select id="estatesSizeFilter">
-              <option value="all" data-i18n="estates.filter_all_sizes">All Sizes</option>
-              <option value="0" data-i18n="game.sizes.small">Small</option>
-              <option value="1" data-i18n="game.sizes.medium">Medium</option>
-              <option value="2" data-i18n="game.sizes.large">Large</option>
-              <option value="apartment" data-i18n="game.sizes.apartment">Apartment</option>
-            </select>
-            <select id="estatesSortSelect">
-              <option value="updated" data-i18n="estates.sort_updated">Recently Updated</option>
-              <option value="location" data-i18n="estates.sort_location">District · Ward · Plot</option>
-              <option value="name" data-i18n="estates.sort_name">Name</option>
-              <option value="furniture" data-i18n="estates.sort_furniture">Most Furniture</option>
-            </select>
-            <button class="btn btn-secondary btn-sm" id="btnEstatesFavOnly" type="button" aria-pressed="false" data-i18n="estates.fav_only">★ Favorites</button>
-            <div class="segmented" role="group" aria-label="View mode">
-              <button class="seg-btn active" id="btnViewCards" type="button" data-i18n="estates.view_cards">Cards</button>
-              <button class="seg-btn" id="btnViewTable" type="button" data-i18n="estates.view_table">Table</button>
-            </div>
-          </div>
-
-          <div id="estatesContainer" class="estates-grid"></div>
-        </section>
-
-        <!-- VIEW 2: PRESETS LIBRARY & WATCHED FOLDERS -->
-        <section class="tab-view" id="view-presets">
-          <div class="view-header">
-            <div>
-              <h1 data-i18n="presets.title">Presets Library</h1>
-              <p class="muted" data-i18n="presets.subtitle">Drop ReMakePlace JSON files or folders, or register persistent watch folders to auto-refresh and apply layouts.</p>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="target-bar">
-              <label class="field target-select-field">
-                <span data-i18n="presets.target_estate">Target Estate</span>
-                <select id="presetTargetSelect"></select>
-              </label>
-              <button class="btn btn-secondary btn-sm" id="btnPresetSyncActive" type="button" data-i18n="presets.sync_active">Sync to Active In-Game</button>
-              <button class="btn btn-secondary btn-sm hidden" id="btnPresetAutoMatch" type="button" data-i18n="presets.auto_match">Select Matching Size</button>
-            </div>
-            <div class="compat-banner" id="presetCompatBanner" data-i18n="presets.compat_select_preset">Select a preset or drop a JSON file to check size compatibility.</div>
-          </div>
-
-          <!-- Persistent Watched Folders Bar -->
-          <div class="panel watch-bar">
-            <div class="watch-bar-top">
-              <div>
-                <strong data-i18n="presets.watch_title">Persistent Watch Folders (Auto-scan &amp; Realtime Update)</strong>
-                <span class="muted small-text" data-i18n="presets.watch_desc">Detects .json changes automatically and refreshes the library.</span>
-              </div>
-              <div class="button-row" style="align-items:center;">
-                <label class="checkbox-label">
-                  <input type="checkbox" id="presetAutoApplyCheck" />
-                  <span data-i18n="presets.auto_apply">Auto-apply to selected estate on file save</span>
-                </label>
-                <button class="btn btn-primary btn-sm" id="btnAddWatchedDir" type="button" data-i18n="presets.add_watch_dir">+ Add Watch Folder</button>
-              </div>
-            </div>
-            <div class="watch-chip-list" id="watchedDirsList"></div>
-          </div>
-
-          <!-- Drag & Drop + File Pickers -->
-          <div class="dropzone" id="presetDropZone" tabindex="0">
-            <div class="dropzone-content">
-              <strong data-i18n="presets.drop_headline">Drag &amp; drop ReMakePlace .json files or folders anywhere onto this window</strong>
-              <span class="muted" data-i18n="presets.drop_sub">Dropped folders are added to persistent watch; UTF-8 / UTF-16LE / UTF-16BE BOM and nested attachments are supported.</span>
-            </div>
-            <div class="dropzone-actions">
-              <input id="presetFilesInput" type="file" accept=".json,application/json" multiple hidden />
-              <input id="presetFolderInput" type="file" webkitdirectory directory multiple hidden />
-              <button class="btn btn-primary btn-sm" id="btnPickPresetFiles" type="button" data-i18n="presets.btn_open_files">Open JSON File(s)</button>
-              <button class="btn btn-secondary btn-sm" id="btnPickPresetFolder" type="button" data-i18n="presets.btn_add_folder">Add Watch Folder</button>
-              <button class="btn btn-ghost btn-sm" id="btnRefreshServerPresets" type="button" data-i18n="presets.btn_refresh">Refresh All Presets</button>
-            </div>
-          </div>
-
-          <div class="split-layout">
-            <div class="panel split-left">
-              <div class="toolbar toolbar-compact">
-                <input class="search-input" id="presetsSearchInput" type="search" data-i18n-placeholder="presets.search_placeholder" placeholder="Search preset name, style, district..." />
-                <select id="presetsSizeFilter">
-                  <option value="all" data-i18n="estates.filter_all_sizes">All Sizes</option>
-                  <option value="0" data-i18n="game.sizes.small">Small</option>
-                  <option value="1" data-i18n="game.sizes.medium">Medium</option>
-                  <option value="2" data-i18n="game.sizes.large">Large</option>
-                  <option value="apartment" data-i18n="game.sizes.apartment">Apartment</option>
-                </select>
-              </div>
-              <div class="preset-list" id="presetList"></div>
-            </div>
-
-            <div class="split-right stack">
-              <div class="panel">
-                <div class="panel-header">
-                  <h3 id="presetDetailTitle" data-i18n="presets.detail_none_title">No Preset Selected</h3>
-                  <span class="badge badge-accent" id="presetDetailBadge" data-i18n="presets.detail_none_badge">None</span>
-                </div>
-                <p class="preset-counts" id="presetDetailCounts" data-i18n="presets.detail_none_counts">Select a preset from the left list or drop a JSON file.</p>
-                <div class="fixture-summary" id="presetDetailFixtures"></div>
-
-                <div class="form-grid form-grid-2">
                   <label class="field">
-                    <span data-i18n="presets.apply_scope">Apply Scope</span>
-                    <select id="presetScopeSelect">
-                      <option value="all" selected data-i18n="presets.scope_all">All (Indoor + Outdoor)</option>
-                      <option value="interior" data-i18n="presets.scope_interior">Interior Only</option>
-                      <option value="exterior" data-i18n="presets.scope_exterior">Outdoor Only</option>
+                    <span><span data-i18n="env.name_label">Estate Name</span> (<em id="envNameBytes">0</em>/20 bytes)</span>
+                    <input id="envNameInput" type="text" data-i18n-placeholder="env.name_placeholder" placeholder="Max 20 UTF-8 bytes" />
+                  </label>
+                  <label class="field">
+                    <span><span data-i18n="env.greeting_label">Greeting</span> (<em id="envGreetingBytes">0</em>/192 bytes)</span>
+                    <textarea id="envGreetingInput" rows="3" data-i18n-placeholder="env.greeting_placeholder" placeholder="Visitor greeting message (max 192 UTF-8 bytes)"></textarea>
+                  </label>
+                  <label class="field">
+                    <span data-i18n="env.memo_label">Personal Memo / Tags (saved locally)</span>
+                    <input id="envMemoInput" type="text" data-i18n-placeholder="env.memo_placeholder" placeholder="e.g. Photo studio cafe, unfinished yard" />
+                  </label>
+                  <div class="button-row">
+                    <button class="btn btn-primary" id="btnEnvSaveMeta" type="button" data-i18n="env.btn_save_meta">Save Name · Greeting</button>
+                    <button class="btn btn-secondary" id="btnEnvSaveMemo" type="button" data-i18n="env.btn_save_memo">Save Memo Only</button>
+                  </div>
+                </div>
+
+                <div class="panel">
+                  <div class="panel-header">
+                    <h3 data-i18n="env.fixtures_summary">Current Interior / Exterior Fixture IDs</h3>
+                  </div>
+                  <div class="fixture-detail-grid" id="envFixturesContent"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Decorate -->
+            <div class="subview" id="subview-decorate">
+              <div class="env-grid">
+                <div class="stack">
+                  <div class="panel">
+                    <div class="panel-header">
+                      <div>
+                        <h3 data-i18n="decor.preset_title">Apply a preset</h3>
+                        <span class="muted small-text" data-i18n="decor.preset_desc">Presets that fit this estate's size</span>
+                      </div>
+                      <button class="btn btn-secondary btn-sm" id="btnDecorOpenLibrary" type="button" data-i18n="decor.open_library">Open Preset Library</button>
+                    </div>
+                    <div class="preset-list decor-preset-list" id="decorPresetList"></div>
+                  </div>
+                </div>
+
+                <div class="stack">
+                  <div class="panel">
+                    <div class="panel-header">
+                      <div>
+                        <h3 data-i18n="decor.rmp_title">Edit in ReMakePlace</h3>
+                        <span class="muted small-text" data-i18n="decor.rmp_desc">With Live Sync on, furniture you move in ReMakePlace is applied to this estate right away.</span>
+                      </div>
+                      <span class="badge badge-muted" id="decorRmpBadge">-</span>
+                    </div>
+                    <div class="button-row">
+                      <button class="btn btn-primary btn-sm" id="btnDecorRmpToggle" type="button" data-i18n="rmp.btn_start">Start ReMakePlace Live Sync</button>
+                    </div>
+                  </div>
+
+                  <div class="panel">
+                    <div class="panel-header">
+                      <h3 data-i18n="presets.export_title">Export ReMakePlace JSON</h3>
+                    </div>
+                    <div class="form-grid form-grid-2">
+                      <label class="field">
+                        <span data-i18n="presets.export_scope">Export Scope</span>
+                        <select id="exportScopeSelect">
+                          <option value="all" selected data-i18n="presets.scope_all">All (Indoor + Outdoor)</option>
+                          <option value="interior" data-i18n="presets.scope_interior">Interior Only</option>
+                          <option value="exterior" data-i18n="presets.scope_exterior">Outdoor Only</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span data-i18n="presets.export_filename">File Name (.json)</span>
+                        <input id="exportFilenameInput" type="text" data-i18n-placeholder="presets.export_filename_placeholder" placeholder="e.g. my_mansion_export.json" />
+                      </label>
+                    </div>
+                    <div class="button-row">
+                      <button class="btn btn-primary btn-sm" id="btnExportDownload" type="button" data-i18n="presets.export_save_as">Save As...</button>
+                      <button class="btn btn-secondary btn-sm" id="btnExportSaveWatched" type="button" data-i18n="presets.export_save_watched">Save to First Watch Folder</button>
+                      <button class="btn btn-ghost btn-sm" id="btnExportSaveServer" type="button" data-i18n="presets.export_save_server">Save to Server (housing-exports)</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Furniture -->
+            <div class="subview" id="subview-furniture">
+              <div class="split-layout inspector-layout">
+                <div class="panel split-left">
+                  <div class="toolbar toolbar-compact">
+                    <div class="segmented" role="group" aria-label="Indoor/Outdoor Scope">
+                      <button class="seg-btn active" id="btnFurnScopeIndoor" type="button"><span data-i18n="furniture.indoor_tab">Indoor</span> (<span id="furnIndoorCount">0</span>)</button>
+                      <button class="seg-btn" id="btnFurnScopeOutdoor" type="button"><span data-i18n="furniture.outdoor_tab">Outdoor</span> (<span id="furnOutdoorCount">0</span>)</button>
+                    </div>
+                    <input class="search-input" id="furnSearchInput" type="search" data-i18n-placeholder="furniture.search_placeholder" placeholder="Search name, item ID, slot..." />
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="furnDyedOnly" />
+                      <span data-i18n="furniture.dyed_only">Dyed Only</span>
+                    </label>
+                    <select id="furnSortSelect">
+                      <option value="slot" data-i18n="furniture.sort_slot">By Slot</option>
+                      <option value="name" data-i18n="furniture.sort_name">By Name</option>
+                      <option value="y" data-i18n="furniture.sort_y">By Height (Y)</option>
                     </select>
-                  </label>
-                  <label class="field">
-                    <span data-i18n="presets.reload_mode">Apply Mode</span>
-                    <select id="presetReloadSelect">
-                      <option value="auto" selected data-i18n="presets.mode_auto">Auto (Recommended)</option>
-                      <option value="live_packets" data-i18n="presets.mode_live">Live Packets (No Reload)</option>
-                      <option value="zone_reload" data-i18n="presets.mode_zone">Zone Reload</option>
-                      <option value="none" data-i18n="presets.mode_none">DB Only</option>
-                    </select>
-                  </label>
-                </div>
+                    <button class="btn btn-ghost btn-sm" id="btnRefreshFurniture" type="button" data-i18n="furniture.refresh">Refresh Furnishings</button>
+                  </div>
 
-                <div class="inline-options">
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="presetPreservePos" checked />
-                    <span data-i18n="presets.preserve_pos">Preserve player position on zone reload</span>
-                  </label>
-                </div>
-
-                <div class="button-row">
-                  <button class="btn btn-secondary" id="btnPreviewPreset" type="button" data-i18n="presets.btn_preview">Compatibility Check</button>
-                  <button class="btn btn-success" id="btnApplyPreset" type="button" data-i18n="presets.btn_apply">Apply to Selected Estate</button>
-                  <button class="btn btn-ghost hidden" id="btnRevealPresetFile" type="button" data-i18n="presets.btn_reveal">Reveal in Explorer</button>
-                </div>
-
-                <div class="preview-report hidden" id="presetPreviewReport"></div>
-              </div>
-
-              <div class="panel">
-                <div class="panel-header">
-                  <h3 data-i18n="presets.export_title">Export ReMakePlace JSON</h3>
-                </div>
-                <div class="form-grid form-grid-2">
-                  <label class="field">
-                    <span data-i18n="presets.export_scope">Export Scope</span>
-                    <select id="exportScopeSelect">
-                      <option value="all" selected data-i18n="presets.scope_all">All (Indoor + Outdoor)</option>
-                      <option value="interior" data-i18n="presets.scope_interior">Interior Only</option>
-                      <option value="exterior" data-i18n="presets.scope_exterior">Outdoor Only</option>
-                    </select>
-                  </label>
-                  <label class="field">
-                    <span data-i18n="presets.export_filename">File Name (.json)</span>
-                    <input id="exportFilenameInput" type="text" data-i18n-placeholder="presets.export_filename_placeholder" placeholder="e.g. my_mansion_export.json" />
-                  </label>
-                </div>
-                <div class="button-row">
-                  <button class="btn btn-primary btn-sm" id="btnExportDownload" type="button" data-i18n="presets.export_save_as">Save As...</button>
-                  <button class="btn btn-secondary btn-sm" id="btnExportSaveWatched" type="button" data-i18n="presets.export_save_watched">Save to First Watch Folder</button>
-                  <button class="btn btn-ghost btn-sm" id="btnExportSaveServer" type="button" data-i18n="presets.export_save_server">Save to Server (housing-exports)</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- VIEW 3: FURNITURE INSPECTOR & LIVE TRANSFORM -->
-        <section class="tab-view" id="view-furniture">
-          <div class="view-header">
-            <div>
-              <h1 data-i18n="furniture.title">Furnishings Inspector · Live Transform Nudge</h1>
-              <p class="muted" data-i18n="furniture.subtitle">Inspect placed indoor/outdoor items and adjust coordinates or rotation live in-game.</p>
-            </div>
-            <div class="view-header-actions">
-              <button class="btn btn-secondary btn-sm" id="btnRefreshFurniture" type="button" data-i18n="furniture.refresh">Refresh Furnishings</button>
-            </div>
-          </div>
-
-          <div class="split-layout inspector-layout">
-            <div class="panel split-left">
-              <div class="toolbar toolbar-compact">
-                <div class="segmented" role="group" aria-label="Indoor/Outdoor Scope">
-                  <button class="seg-btn active" id="btnFurnScopeIndoor" type="button"><span data-i18n="furniture.indoor_tab">Indoor</span> (<span id="furnIndoorCount">0</span>)</button>
-                  <button class="seg-btn" id="btnFurnScopeOutdoor" type="button"><span data-i18n="furniture.outdoor_tab">Outdoor</span> (<span id="furnOutdoorCount">0</span>)</button>
-                </div>
-                <input class="search-input" id="furnSearchInput" type="search" data-i18n-placeholder="furniture.search_placeholder" placeholder="Search name, item ID, slot..." />
-                <label class="checkbox-label">
-                  <input type="checkbox" id="furnDyedOnly" />
-                  <span data-i18n="furniture.dyed_only">Dyed Only</span>
-                </label>
-                <select id="furnSortSelect">
-                  <option value="slot" data-i18n="furniture.sort_slot">By Slot</option>
-                  <option value="name" data-i18n="furniture.sort_name">By Name</option>
-                  <option value="y" data-i18n="furniture.sort_y">By Height (Y)</option>
-                </select>
-              </div>
-
-              <div class="table-wrap">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th data-i18n="furniture.col_slot">Slot</th>
-                      <th data-i18n="furniture.col_name">Name</th>
-                      <th data-i18n="furniture.col_item">Item</th>
-                      <th data-i18n="furniture.col_stain">Dye</th>
-                      <th>X</th>
-                      <th>Y</th>
-                      <th>Z</th>
-                      <th data-i18n="furniture.col_rot">Angle</th>
-                    </tr>
-                  </thead>
-                  <tbody id="furnitureTableBody"></tbody>
-                </table>
-              </div>
-            </div>
-
-            <div class="panel split-right stack" id="transformPanel">
-              <div class="panel-header">
-                <div>
-                  <h3 id="tfItemName" data-i18n="furniture.none_selected">Select a Furnishing</h3>
-                  <span class="muted small-text" id="tfItemMeta" data-i18n="furniture.none_meta">Click a row in the table on the left to adjust live coordinates and rotation.</span>
-                </div>
-                <span class="badge badge-muted" id="tfSlotBadge">-</span>
-              </div>
-
-              <div class="inline-options">
-                <label class="checkbox-label">
-                  <input type="checkbox" id="tfAutoPreview" checked />
-                  <span data-i18n="furniture.auto_preview">Live preview in-game while editing</span>
-                </label>
-                <label class="checkbox-label hidden" id="tfPlotLocalWrap">
-                  <input type="checkbox" id="tfPlotLocal" checked />
-                  <span data-i18n="furniture.plot_local">Use plot-local coordinates (Outdoor)</span>
-                </label>
-              </div>
-
-              <div class="axis-group">
-                <div class="axis-row">
-                  <label class="axis-label">X</label>
-                  <input class="axis-input" id="tfPosX" type="number" step="0.01" />
-                  <div class="nudge-group">
-                    <button class="btn-nudge" data-axis="x" data-delta="-1" type="button">-1</button>
-                    <button class="btn-nudge" data-axis="x" data-delta="-0.1" type="button">-0.1</button>
-                    <button class="btn-nudge" data-axis="x" data-delta="-0.01" type="button">-0.01</button>
-                    <button class="btn-nudge" data-axis="x" data-delta="0.01" type="button">+0.01</button>
-                    <button class="btn-nudge" data-axis="x" data-delta="0.1" type="button">+0.1</button>
-                    <button class="btn-nudge" data-axis="x" data-delta="1" type="button">+1</button>
+                  <div class="table-wrap">
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th data-i18n="furniture.col_slot">Slot</th>
+                          <th data-i18n="furniture.col_name">Name</th>
+                          <th data-i18n="furniture.col_item">Item</th>
+                          <th data-i18n="furniture.col_stain">Dye</th>
+                          <th>X</th>
+                          <th>Y</th>
+                          <th>Z</th>
+                          <th data-i18n="furniture.col_rot">Angle</th>
+                        </tr>
+                      </thead>
+                      <tbody id="furnitureTableBody"></tbody>
+                    </table>
                   </div>
                 </div>
-                <div class="axis-row">
-                  <label class="axis-label" data-i18n="furniture.axis_y">Y (Height)</label>
-                  <input class="axis-input" id="tfPosY" type="number" step="0.01" />
-                  <div class="nudge-group">
-                    <button class="btn-nudge" data-axis="y" data-delta="-1" type="button">-1</button>
-                    <button class="btn-nudge" data-axis="y" data-delta="-0.1" type="button">-0.1</button>
-                    <button class="btn-nudge" data-axis="y" data-delta="-0.01" type="button">-0.01</button>
-                    <button class="btn-nudge" data-axis="y" data-delta="0.01" type="button">+0.01</button>
-                    <button class="btn-nudge" data-axis="y" data-delta="0.1" type="button">+0.1</button>
-                    <button class="btn-nudge" data-axis="y" data-delta="1" type="button">+1</button>
-                  </div>
-                </div>
-                <div class="axis-row">
-                  <label class="axis-label">Z</label>
-                  <input class="axis-input" id="tfPosZ" type="number" step="0.01" />
-                  <div class="nudge-group">
-                    <button class="btn-nudge" data-axis="z" data-delta="-1" type="button">-1</button>
-                    <button class="btn-nudge" data-axis="z" data-delta="-0.1" type="button">-0.1</button>
-                    <button class="btn-nudge" data-axis="z" data-delta="-0.01" type="button">-0.01</button>
-                    <button class="btn-nudge" data-axis="z" data-delta="0.01" type="button">+0.01</button>
-                    <button class="btn-nudge" data-axis="z" data-delta="0.1" type="button">+0.1</button>
-                    <button class="btn-nudge" data-axis="z" data-delta="1" type="button">+1</button>
-                  </div>
-                </div>
-                <div class="axis-row">
-                  <label class="axis-label" data-i18n="furniture.axis_rot">Angle (°)</label>
-                  <input class="axis-input" id="tfRotDeg" type="number" step="1" min="-180" max="180" />
-                  <div class="nudge-group">
-                    <button class="btn-nudge" data-axis="rot" data-delta="-45" type="button">-45°</button>
-                    <button class="btn-nudge" data-axis="rot" data-delta="-15" type="button">-15°</button>
-                    <button class="btn-nudge" data-axis="rot" data-delta="-1" type="button">-1°</button>
-                    <button class="btn-nudge" data-axis="rot" data-delta="1" type="button">+1°</button>
-                    <button class="btn-nudge" data-axis="rot" data-delta="15" type="button">+15°</button>
-                    <button class="btn-nudge" data-axis="rot" data-delta="45" type="button">+45°</button>
-                  </div>
-                </div>
-                <input id="tfRotSlider" type="range" min="-180" max="180" step="0.5" value="0" />
-              </div>
 
-              <div class="button-row">
-                <button class="btn btn-secondary" id="btnTfRevert" type="button" disabled data-i18n="furniture.btn_revert">Revert</button>
-                <button class="btn btn-success" id="btnTfCommit" type="button" disabled data-i18n="furniture.btn_commit">Save to DB &amp; Sync RMP</button>
+                <div class="panel split-right stack" id="transformPanel">
+                  <div class="panel-header">
+                    <div>
+                      <h3 id="tfItemName" data-i18n="furniture.none_selected">Select a Furnishing</h3>
+                      <span class="muted small-text" id="tfItemMeta" data-i18n="furniture.none_meta">Click a row in the table on the left to adjust live coordinates and rotation.</span>
+                    </div>
+                    <span class="badge badge-muted" id="tfSlotBadge">-</span>
+                  </div>
+
+                  <div class="inline-options">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="tfAutoPreview" checked />
+                      <span data-i18n="furniture.auto_preview">Live preview in-game while editing</span>
+                    </label>
+                    <label class="checkbox-label hidden" id="tfPlotLocalWrap">
+                      <input type="checkbox" id="tfPlotLocal" checked />
+                      <span data-i18n="furniture.plot_local">Use plot-local coordinates (Outdoor)</span>
+                    </label>
+                  </div>
+
+                  <div class="axis-group">
+                    <div class="axis-row">
+                      <label class="axis-label">X</label>
+                      <input class="axis-input" id="tfPosX" type="number" step="0.01" />
+                      <div class="nudge-group">
+                        <button class="btn-nudge" data-axis="x" data-delta="-1" type="button">-1</button>
+                        <button class="btn-nudge" data-axis="x" data-delta="-0.1" type="button">-0.1</button>
+                        <button class="btn-nudge" data-axis="x" data-delta="-0.01" type="button">-0.01</button>
+                        <button class="btn-nudge" data-axis="x" data-delta="0.01" type="button">+0.01</button>
+                        <button class="btn-nudge" data-axis="x" data-delta="0.1" type="button">+0.1</button>
+                        <button class="btn-nudge" data-axis="x" data-delta="1" type="button">+1</button>
+                      </div>
+                    </div>
+                    <div class="axis-row">
+                      <label class="axis-label" data-i18n="furniture.axis_y">Y (Height)</label>
+                      <input class="axis-input" id="tfPosY" type="number" step="0.01" />
+                      <div class="nudge-group">
+                        <button class="btn-nudge" data-axis="y" data-delta="-1" type="button">-1</button>
+                        <button class="btn-nudge" data-axis="y" data-delta="-0.1" type="button">-0.1</button>
+                        <button class="btn-nudge" data-axis="y" data-delta="-0.01" type="button">-0.01</button>
+                        <button class="btn-nudge" data-axis="y" data-delta="0.01" type="button">+0.01</button>
+                        <button class="btn-nudge" data-axis="y" data-delta="0.1" type="button">+0.1</button>
+                        <button class="btn-nudge" data-axis="y" data-delta="1" type="button">+1</button>
+                      </div>
+                    </div>
+                    <div class="axis-row">
+                      <label class="axis-label">Z</label>
+                      <input class="axis-input" id="tfPosZ" type="number" step="0.01" />
+                      <div class="nudge-group">
+                        <button class="btn-nudge" data-axis="z" data-delta="-1" type="button">-1</button>
+                        <button class="btn-nudge" data-axis="z" data-delta="-0.1" type="button">-0.1</button>
+                        <button class="btn-nudge" data-axis="z" data-delta="-0.01" type="button">-0.01</button>
+                        <button class="btn-nudge" data-axis="z" data-delta="0.01" type="button">+0.01</button>
+                        <button class="btn-nudge" data-axis="z" data-delta="0.1" type="button">+0.1</button>
+                        <button class="btn-nudge" data-axis="z" data-delta="1" type="button">+1</button>
+                      </div>
+                    </div>
+                    <div class="axis-row">
+                      <label class="axis-label" data-i18n="furniture.axis_rot">Angle (°)</label>
+                      <input class="axis-input" id="tfRotDeg" type="number" step="1" min="-180" max="180" />
+                      <div class="nudge-group">
+                        <button class="btn-nudge" data-axis="rot" data-delta="-45" type="button">-45°</button>
+                        <button class="btn-nudge" data-axis="rot" data-delta="-15" type="button">-15°</button>
+                        <button class="btn-nudge" data-axis="rot" data-delta="-1" type="button">-1°</button>
+                        <button class="btn-nudge" data-axis="rot" data-delta="1" type="button">+1°</button>
+                        <button class="btn-nudge" data-axis="rot" data-delta="15" type="button">+15°</button>
+                        <button class="btn-nudge" data-axis="rot" data-delta="45" type="button">+45°</button>
+                      </div>
+                    </div>
+                    <input id="tfRotSlider" type="range" min="-180" max="180" step="0.5" value="0" />
+                  </div>
+
+                  <div class="button-row">
+                    <button class="btn btn-secondary" id="btnTfRevert" type="button" disabled data-i18n="furniture.btn_revert">Revert</button>
+                    <button class="btn btn-success" id="btnTfCommit" type="button" disabled data-i18n="furniture.btn_commit">Save to DB &amp; Sync RMP</button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
 
-        <!-- VIEW 4: ENVIRONMENT & SNAPSHOTS -->
-        <section class="tab-view" id="view-environment">
-          <div class="view-header">
-            <div>
-              <h1 data-i18n="env.title">Environment · Snapshot Timeline</h1>
-              <p class="muted" data-i18n="env.subtitle">Configure interior lighting, SSAO, visitor access, interior remodel style, name/greeting, and restore snapshots.</p>
-            </div>
-          </div>
-
-          <div class="env-grid">
-            <div class="stack">
-              <div class="panel">
+            <!-- Environment -->
+            <div class="subview" id="subview-environment">
+              <div class="panel env-single">
                 <div class="panel-header">
                   <h3 data-i18n="env.light_card_title">Lighting · Options</h3>
                 </div>
@@ -888,88 +641,493 @@
                   <button class="btn btn-secondary" id="btnEnvApplyStyle" type="button" data-i18n="env.btn_apply_style">Apply Interior Style</button>
                 </div>
               </div>
-
-              <div class="panel">
-                <div class="panel-header">
-                  <h3 data-i18n="env.meta_card_title">Estate Name · Greeting · Local Memo</h3>
-                </div>
-                <label class="field">
-                  <span><span data-i18n="env.name_label">Estate Name</span> (<em id="envNameBytes">0</em>/20 bytes)</span>
-                  <input id="envNameInput" type="text" data-i18n-placeholder="env.name_placeholder" placeholder="Max 20 UTF-8 bytes" />
-                </label>
-                <label class="field">
-                  <span><span data-i18n="env.greeting_label">Greeting</span> (<em id="envGreetingBytes">0</em>/192 bytes)</span>
-                  <textarea id="envGreetingInput" rows="3" data-i18n-placeholder="env.greeting_placeholder" placeholder="Visitor greeting message (max 192 UTF-8 bytes)"></textarea>
-                </label>
-                <label class="field">
-                  <span data-i18n="env.memo_label">Personal Memo / Tags (saved locally)</span>
-                  <input id="envMemoInput" type="text" data-i18n-placeholder="env.memo_placeholder" placeholder="e.g. Photo studio cafe, unfinished yard" />
-                </label>
-                <div class="button-row">
-                  <button class="btn btn-primary" id="btnEnvSaveMeta" type="button" data-i18n="env.btn_save_meta">Save Name · Greeting</button>
-                  <button class="btn btn-secondary" id="btnEnvSaveMemo" type="button" data-i18n="env.btn_save_memo">Save Memo Only</button>
-                </div>
-              </div>
-
-              <details class="panel" id="envFixturesDetails">
-                <summary class="details-summary" data-i18n="env.fixtures_summary">Current Interior / Exterior Fixture IDs</summary>
-                <div class="fixture-detail-grid" id="envFixturesContent"></div>
-              </details>
-
-              <div class="panel panel-danger">
-                <div class="panel-header">
-                  <h3 data-i18n="env.danger_title">Clear · Reload · Delete</h3>
-                </div>
-                <div class="button-row">
-                  <button class="btn btn-secondary btn-sm" id="btnResetIndoor" type="button" data-i18n="env.btn_reset_in">Clear Indoor</button>
-                  <button class="btn btn-secondary btn-sm" id="btnResetExterior" type="button" data-i18n="env.btn_reset_out">Clear Outdoor</button>
-                  <button class="btn btn-danger btn-sm" id="btnResetAll" type="button" data-i18n="env.btn_reset_all">Clear All</button>
-                  <button class="btn btn-secondary btn-sm" id="btnEnvForceReload" type="button" data-i18n="env.btn_force_reload">Force Zone Reload</button>
-                  <button class="btn btn-danger btn-sm" id="btnDeleteEstate" type="button" data-i18n="env.btn_delete">Delete Estate</button>
-                </div>
-              </div>
             </div>
 
-            <div class="panel stack">
-              <div class="panel-header">
-                <h3 data-i18n="env.snaps_title">Snapshot Timeline (max 25)</h3>
-                <button class="btn btn-secondary btn-sm" id="btnSnapshotUndo" type="button" data-i18n="env.btn_undo">Undo Latest</button>
+            <!-- History -->
+            <div class="subview" id="subview-history">
+              <div class="env-grid">
+                <div class="panel stack">
+                  <div class="panel-header">
+                    <h3 data-i18n="env.snaps_title">Snapshot Timeline (max 25)</h3>
+                    <button class="btn btn-secondary btn-sm" id="btnSnapshotUndo" type="button" data-i18n="env.btn_undo">Undo Latest</button>
+                  </div>
+                  <div class="snapshot-create-row">
+                    <input id="snapshotLabelInput" type="text" data-i18n-placeholder="env.snap_placeholder" placeholder="Snapshot label (blank for 'Manual Snapshot')" />
+                    <button class="btn btn-primary btn-sm" id="btnSnapshotCreate" type="button" data-i18n="env.btn_snap_create">Save Snapshot</button>
+                  </div>
+                  <div class="snapshot-timeline" id="snapshotTimeline"></div>
+                </div>
+
+                <div class="panel panel-danger">
+                  <div class="panel-header">
+                    <h3 data-i18n="env.danger_title">Clear · Reload · Delete</h3>
+                  </div>
+                  <div class="button-row">
+                    <button class="btn btn-secondary btn-sm" id="btnResetIndoor" type="button" data-i18n="env.btn_reset_in">Clear Indoor</button>
+                    <button class="btn btn-secondary btn-sm" id="btnResetExterior" type="button" data-i18n="env.btn_reset_out">Clear Outdoor</button>
+                    <button class="btn btn-danger btn-sm" id="btnResetAll" type="button" data-i18n="env.btn_reset_all">Clear All</button>
+                    <button class="btn btn-secondary btn-sm" id="btnEnvForceReload" type="button" data-i18n="env.btn_force_reload">Force Zone Reload</button>
+                    <button class="btn btn-danger btn-sm" id="btnDeleteEstate" type="button" data-i18n="env.btn_delete">Delete Estate</button>
+                  </div>
+                </div>
               </div>
-              <div class="snapshot-create-row">
-                <input id="snapshotLabelInput" type="text" data-i18n-placeholder="env.snap_placeholder" placeholder="Snapshot label (blank for 'Manual Snapshot')" />
-                <button class="btn btn-primary btn-sm" id="btnSnapshotCreate" type="button" data-i18n="env.btn_snap_create">Save Snapshot</button>
-              </div>
-              <div class="snapshot-timeline" id="snapshotTimeline"></div>
             </div>
           </div>
         </section>
 
-        <!-- VIEW 5: REALTIME SSE & SYSTEM LOGS -->
+        <!-- ================= PRESETS ================= -->
+        <section class="tab-view" id="view-presets">
+          <div class="view-header">
+            <div>
+              <h1 data-i18n="presets.title">Presets Library</h1>
+              <p class="muted" data-i18n="presets.subtitle">Drop ReMakePlace JSON files or folders, or register persistent watch folders to auto-refresh and apply layouts.</p>
+            </div>
+          </div>
+
+          <div class="panel watch-bar">
+            <div class="watch-bar-top">
+              <div>
+                <strong data-i18n="presets.watch_title">Persistent Watch Folders (Auto-scan &amp; Realtime Update)</strong>
+                <span class="muted small-text" data-i18n="presets.watch_desc">Detects .json changes automatically and refreshes the library.</span>
+              </div>
+              <div class="button-row" style="align-items:center;">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="presetAutoApplyCheck" />
+                  <span data-i18n="presets.auto_apply">Auto-apply to selected estate on file save</span>
+                </label>
+                <button class="btn btn-primary btn-sm" id="btnAddWatchedDir" type="button" data-i18n="presets.add_watch_dir">+ Add Watch Folder</button>
+              </div>
+            </div>
+            <div class="watch-chip-list" id="watchedDirsList"></div>
+          </div>
+
+          <div class="dropzone" id="presetDropZone" tabindex="0">
+            <div class="dropzone-content">
+              <strong data-i18n="presets.drop_headline">Drag &amp; drop ReMakePlace .json files or folders anywhere onto this window</strong>
+              <span class="muted" data-i18n="presets.drop_sub">Dropped folders are added to persistent watch; UTF-8 / UTF-16LE / UTF-16BE BOM and nested attachments are supported.</span>
+            </div>
+            <div class="dropzone-actions">
+              <input id="presetFilesInput" type="file" accept=".json,application/json" multiple hidden />
+              <input id="presetFolderInput" type="file" webkitdirectory directory multiple hidden />
+              <button class="btn btn-primary btn-sm" id="btnPickPresetFiles" type="button" data-i18n="presets.btn_open_files">Open JSON File(s)</button>
+              <button class="btn btn-secondary btn-sm" id="btnPickPresetFolder" type="button" data-i18n="presets.btn_add_folder">Add Watch Folder</button>
+              <button class="btn btn-ghost btn-sm" id="btnRefreshServerPresets" type="button" data-i18n="presets.btn_refresh">Refresh All Presets</button>
+            </div>
+          </div>
+
+          <div class="split-layout">
+            <div class="panel split-left">
+              <div class="toolbar toolbar-compact">
+                <input class="search-input" id="presetsSearchInput" type="search" data-i18n-placeholder="presets.search_placeholder" placeholder="Search preset name, style, district..." />
+                <select id="presetsSizeFilter">
+                  <option value="all" data-i18n="estates.filter_all_sizes">All Sizes</option>
+                  <option value="0" data-i18n="game.sizes.small">Small</option>
+                  <option value="1" data-i18n="game.sizes.medium">Medium</option>
+                  <option value="2" data-i18n="game.sizes.large">Large</option>
+                  <option value="apartment" data-i18n="game.sizes.apartment">Apartment</option>
+                </select>
+              </div>
+              <div class="preset-list" id="presetList"></div>
+            </div>
+
+            <div class="split-right stack">
+              <div class="panel">
+                <div class="panel-header">
+                  <h3 id="presetDetailTitle" data-i18n="presets.detail_none_title">No Preset Selected</h3>
+                  <span class="badge badge-accent" id="presetDetailBadge" data-i18n="presets.detail_none_badge">None</span>
+                </div>
+                <p class="preset-counts" id="presetDetailCounts" data-i18n="presets.detail_none_counts">Select a preset from the left list or drop a JSON file.</p>
+                <div class="fixture-summary" id="presetDetailFixtures"></div>
+                <div class="button-row">
+                  <button class="btn btn-ghost btn-sm hidden" id="btnRevealPresetFile" type="button" data-i18n="presets.btn_reveal">Reveal in Explorer</button>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-header">
+                  <h3 data-i18n="presets.apply_title">Apply to an estate</h3>
+                </div>
+                <div class="target-bar">
+                  <label class="field target-select-field">
+                    <span data-i18n="presets.target_estate">Target Estate</span>
+                    <select id="presetTargetSelect"></select>
+                  </label>
+                  <button class="btn btn-secondary btn-sm" id="btnPresetSyncActive" type="button" data-i18n="presets.sync_active">Sync to Active In-Game</button>
+                  <button class="btn btn-secondary btn-sm hidden" id="btnPresetAutoMatch" type="button" data-i18n="presets.auto_match">Select Matching Size</button>
+                </div>
+                <div class="compat-banner" id="presetCompatBanner" data-i18n="presets.compat_select_preset">Select a preset or drop a JSON file to check size compatibility.</div>
+
+                <div class="form-grid form-grid-2">
+                  <label class="field">
+                    <span data-i18n="presets.apply_scope">Apply Scope</span>
+                    <select id="presetScopeSelect">
+                      <option value="all" selected data-i18n="presets.scope_all">All (Indoor + Outdoor)</option>
+                      <option value="interior" data-i18n="presets.scope_interior">Interior Only</option>
+                      <option value="exterior" data-i18n="presets.scope_exterior">Outdoor Only</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span data-i18n="presets.reload_mode">Apply Mode</span>
+                    <select id="presetReloadSelect">
+                      <option value="auto" selected data-i18n="presets.mode_auto">Auto (Recommended)</option>
+                      <option value="live_packets" data-i18n="presets.mode_live">Live Packets (No Reload)</option>
+                      <option value="zone_reload" data-i18n="presets.mode_zone">Zone Reload</option>
+                      <option value="none" data-i18n="presets.mode_none">DB Only</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div class="inline-options">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="presetPreservePos" checked />
+                    <span data-i18n="presets.preserve_pos">Preserve player position on zone reload</span>
+                  </label>
+                </div>
+
+                <div class="button-row">
+                  <button class="btn btn-secondary" id="btnPreviewPreset" type="button" data-i18n="presets.btn_preview">Compatibility Check</button>
+                  <button class="btn btn-success" id="btnApplyPreset" type="button" data-i18n="presets.btn_apply">Apply to Selected Estate</button>
+                </div>
+
+                <div class="preview-report hidden" id="presetPreviewReport"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= RUNTIME ================= -->
+        <section class="tab-view" id="view-runtime">
+          <div class="view-header">
+            <div>
+              <h1 data-i18n="runtime.title">Runtime</h1>
+              <p class="muted" data-i18n="runtime.subtitle">Install, update, and repair everything Foundation Studio needs, from official releases.</p>
+            </div>
+            <div class="view-header-actions">
+              <span class="badge badge-muted" id="setupBadgeOverall" data-i18n="server.badge_checking">Checking</span>
+              <button class="btn btn-secondary btn-sm" id="btnCheckUpdates" type="button" data-i18n="runtime.check_updates">Check for Updates</button>
+              <button class="btn btn-secondary btn-sm" id="btnSetupRefresh" type="button" data-i18n="setup.btn_refresh">Check</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h3 data-i18n="runtime.group_required">Required (local play)</h3>
+              <button class="btn btn-primary btn-sm" id="btnSetupInstallAll" type="button" data-i18n="setup.btn_install_all">Install / Repair Missing</button>
+            </div>
+            <div class="setup-checklist">
+              <div class="setup-row">
+                <div class="setup-row-info">
+                  <strong data-i18n="setup.comp_foundation">Foundation Server</strong>
+                  <span class="muted small-text" id="runtimeFoundationInfo" data-i18n="setup.comp_foundation_src">bloooowfish/Foundation (Windows x64 Release)</span>
+                </div>
+                <div class="setup-row-actions">
+                  <span class="badge badge-muted" id="setupStateFoundation" data-i18n="server.badge_checking">Checking</span>
+                  <button class="btn btn-secondary btn-xs" data-setup-install="foundation" type="button" data-i18n="setup.btn_install_one">Install</button>
+                </div>
+              </div>
+              <div class="setup-row">
+                <div class="setup-row-info">
+                  <strong data-i18n="setup.comp_oodle">Oodle Network DLL</strong>
+                  <span class="muted small-text" data-i18n="setup.comp_oodle_src">WorkingRobot/OodleUE (official msvc-x64 release)</span>
+                </div>
+                <div class="setup-row-actions">
+                  <span class="badge badge-muted" id="setupStateOodle" data-i18n="server.badge_checking">Checking</span>
+                  <button class="btn btn-secondary btn-xs" data-setup-install="oodle" type="button" data-i18n="setup.btn_install_one">Install</button>
+                </div>
+              </div>
+              <div class="setup-row">
+                <div class="setup-row-info">
+                  <strong data-i18n="setup.comp_config">Server Config (config.yaml)</strong>
+                  <span class="muted small-text" id="runtimeConfigInfo" data-i18n="setup.comp_config_src">Generated from FFXIV client Game Path</span>
+                </div>
+                <div class="setup-row-actions">
+                  <span class="badge badge-muted" id="setupStateConfig" data-i18n="server.badge_checking">Checking</span>
+                  <button class="btn btn-secondary btn-xs" id="btnSetupGenerateConfig" type="button" data-i18n="setup.btn_generate_cfg">Generate</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h3 data-i18n="runtime.group_rmp">ReMakePlace integration (optional)</h3>
+            </div>
+            <div class="setup-checklist">
+              <div class="setup-row">
+                <div class="setup-row-info">
+                  <strong data-i18n="setup.comp_rmp">ReMakePlace</strong>
+                  <span class="muted small-text mono-inline" id="runtimeRmpPath">-</span>
+                  <span class="muted small-text" id="runtimeRmpInfo"></span>
+                </div>
+                <div class="setup-row-actions">
+                  <span class="badge badge-muted" id="setupStateRmp" data-i18n="server.badge_checking">Checking</span>
+                  <button class="btn btn-primary btn-xs" id="btnRmpInstall" type="button" data-i18n="runtime.rmp_install">Install</button>
+                  <button class="btn btn-secondary btn-xs" id="btnRmpRepair" type="button" data-i18n="runtime.rmp_repair">Repair</button>
+                  <button class="btn btn-ghost btn-xs" id="btnRmpChangeDir" type="button" data-i18n="runtime.rmp_change_dir">Change Folder</button>
+                </div>
+              </div>
+              <div class="setup-row">
+                <div class="setup-row-info">
+                  <strong data-i18n="setup.comp_bridge">rmp-bridge Scripts &amp; Mods</strong>
+                  <span class="muted small-text" data-i18n="setup.comp_bridge_src">bloooowfish/rmp-bridge</span>
+                </div>
+                <div class="setup-row-actions">
+                  <span class="badge badge-muted" id="setupStateBridge" data-i18n="server.badge_checking">Checking</span>
+                  <button class="btn btn-secondary btn-xs" data-setup-install="rmp_bridge" type="button" data-i18n="setup.btn_install_one">Install</button>
+                </div>
+              </div>
+              <div class="setup-row">
+                <div class="setup-row-info">
+                  <strong data-i18n="setup.comp_ue4ss">RE-UE4SS v4.0.0</strong>
+                  <span class="muted small-text" data-i18n="setup.comp_ue4ss_src">UE4SS-RE/RE-UE4SS (MIT, SHA-256 verified)</span>
+                </div>
+                <div class="setup-row-actions">
+                  <span class="badge badge-muted" id="setupStateUe4ss" data-i18n="server.badge_checking">Checking</span>
+                  <button class="btn btn-secondary btn-xs" data-setup-install="ue4ss" type="button" data-i18n="setup.btn_install_one">Install</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="setup-progress hidden js-setup-progress" id="setupProgressWrap">
+              <div class="setup-progress-track"><div class="setup-progress-fill js-setup-progress-bar" id="setupProgressBar"></div></div>
+              <div class="muted small-text js-setup-progress-text" id="setupProgressText"></div>
+            </div>
+            <div class="inline-options">
+              <label class="checkbox-label">
+                <input type="checkbox" id="setupUseManagedDirCheck" />
+                <span data-i18n="setup.use_managed_dir">Install into Foundation Studio managed runtime folder (%LocalAppData%)</span>
+              </label>
+            </div>
+            <div class="muted small-text"><span data-i18n="runtime.install_dir">Install location</span>: <span class="mono-inline" id="setupSummaryPath"></span></div>
+          </div>
+        </section>
+
+        <!-- ================= SETTINGS ================= -->
+        <section class="tab-view" id="view-settings">
+          <div class="view-header">
+            <div>
+              <h1 data-i18n="settings.title">Settings</h1>
+              <p class="muted" data-i18n="settings.subtitle">Changes here rarely need to be touched after the first setup.</p>
+            </div>
+            <div class="view-header-actions">
+              <button class="btn btn-primary btn-sm" id="btnSaveLauncherSettings" type="button" data-i18n="launcher.save_settings">Save Settings</button>
+            </div>
+          </div>
+
+          <div class="settings-grid">
+            <div class="panel" id="settingsGamePanel">
+              <div class="panel-header"><h3 data-i18n="settings.group_game">Game</h3></div>
+              <label class="field">
+                <span data-i18n="launcher.game_path">Game Path (ffxiv_dx11.exe or install root)</span>
+                <div class="input-with-btn">
+                  <input id="launcherGamePath" type="text" placeholder="D:\SquareEnix\...\game\ffxiv_dx11.exe" />
+                  <button class="btn btn-secondary btn-sm" id="btnBrowseGamePath" type="button" data-i18n="launcher.browse">Browse</button>
+                </div>
+              </label>
+              <div class="form-grid form-grid-2">
+                <label class="field">
+                  <span data-i18n="launcher.version">Game Version (ffxivgame.ver)</span>
+                  <div class="input-with-btn">
+                    <input id="launcherVersion" type="text" placeholder="e.g. 2026.11.03.0000.0000" />
+                    <button class="btn btn-secondary btn-sm" id="btnRefreshLauncher" type="button" data-i18n="launcher.refresh">Refresh</button>
+                  </div>
+                </label>
+                <label class="field">
+                  <span data-i18n="launcher.language">Client Language</span>
+                  <select id="launcherLanguage">
+                    <option value="0">Japanese (0)</option>
+                    <option value="1">English (1)</option>
+                    <option value="2">German (2)</option>
+                    <option value="3">French (3)</option>
+                  </select>
+                </label>
+              </div>
+              <div class="form-grid form-grid-2">
+                <label class="field">
+                  <span data-i18n="launcher.expansion">Max Expansion</span>
+                  <select id="launcherExpansion">
+                    <option value="0" data-i18n="game.expansions.0">A Realm Reborn (0)</option>
+                    <option value="1" data-i18n="game.expansions.1">Heavensward (1)</option>
+                    <option value="2" data-i18n="game.expansions.2">Stormblood (2)</option>
+                    <option value="3" data-i18n="game.expansions.3">Shadowbringers (3)</option>
+                    <option value="4" data-i18n="game.expansions.4">Endwalker (4)</option>
+                    <option value="5" selected data-i18n="game.expansions.5">Dawntrail (5)</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span data-i18n="launcher.extra_args">Extra Launch Arguments</span>
+                  <input id="launcherExtraArgs" type="text" data-i18n-placeholder="launcher.extra_args_placeholder" placeholder="Optional" />
+                </label>
+              </div>
+              <div class="inline-options">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="launcherFrontierCheck" checked />
+                  <span data-i18n="launcher.frontier_host">Include Frontier host</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="launcherOpenDashboardCheck" checked />
+                  <span data-i18n="launcher.open_dashboard">Switch to Estates after launch</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="launcherCloseOnLaunchCheck" />
+                  <span data-i18n="launcher.close_on_launch">Close after launch (or hide to tray if active)</span>
+                </label>
+              </div>
+              <details class="settings-details">
+                <summary class="details-summary" data-i18n="settings.account_summary">Local account (default 1 / 2)</summary>
+                <div class="form-grid form-grid-2">
+                  <label class="field">
+                    <span data-i18n="launcher.username">Username (ID)</span>
+                    <input id="launcherUsername" type="text" autocomplete="off" />
+                  </label>
+                  <label class="field">
+                    <span data-i18n="launcher.password">Password (Windows DPAPI encrypted)</span>
+                    <input id="launcherPassword" type="password" autocomplete="off" />
+                  </label>
+                </div>
+              </details>
+            </div>
+
+            <div class="stack">
+              <div class="panel">
+                <div class="panel-header"><h3 data-i18n="settings.group_server">Server</h3></div>
+                <label class="field">
+                  <span data-i18n="server.root_label">Foundation Root Folder (containing config.yaml)</span>
+                  <div class="input-with-btn">
+                    <input id="srvFoundationRoot" type="text" placeholder="%LocalAppData%\FoundationStudio\runtime\foundation" />
+                    <button class="btn btn-secondary btn-sm" id="btnBrowseFoundationRoot" type="button" data-i18n="launcher.browse">Browse</button>
+                  </div>
+                </label>
+                <div class="form-grid form-grid-2">
+                  <label class="field">
+                    <span data-i18n="server.profile_label">Build Profile</span>
+                    <select id="srvProfileSelect">
+                      <option value="prebuilt" data-i18n="server.profile_prebuilt">prebuilt (flat binaries)</option>
+                      <option value="debug" selected data-i18n="server.profile_debug">debug (target\debug)</option>
+                      <option value="release" data-i18n="server.profile_release">release (target\release)</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span data-i18n="launcher.server_url">Foundation Server URL</span>
+                    <div class="input-with-btn">
+                      <input id="launcherServerUrl" type="text" placeholder="http://127.0.0.1:21062" />
+                      <button class="btn btn-secondary btn-sm" id="btnCheckKawari" type="button" data-i18n="launcher.check_btn">Check</button>
+                    </div>
+                  </label>
+                </div>
+                <div class="button-row">
+                  <button class="btn btn-ghost btn-sm" id="btnServerRefresh" type="button" data-i18n="server.recheck">Re-check Status</button>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-header"><h3 data-i18n="settings.group_rmp">ReMakePlace</h3></div>
+                <label class="field">
+                  <span data-i18n="rmp.path_label">ReMakePlace Path (MakePlace-Win64-Shipping.exe or root folder)</span>
+                  <div class="input-with-btn">
+                    <input id="rmpPathInput" type="text" placeholder="D:\ReMakePlace" />
+                    <button class="btn btn-secondary btn-sm" id="btnBrowseRmpPath" type="button" data-i18n="launcher.browse">Browse</button>
+                  </div>
+                </label>
+              </div>
+
+              <div class="panel">
+                <div class="panel-header"><h3 data-i18n="settings.group_app">App</h3></div>
+                <label class="field">
+                  <span data-i18n="desktop.ui_language">UI Language</span>
+                  <select id="prefUiLocaleSelect">
+                    <option value="auto" data-i18n="desktop.lang_auto">Auto (System Locale)</option>
+                    <option value="ko" data-locale-option="ko">Korean</option>
+                    <option value="en" data-locale-option="en">English</option>
+                    <option value="ja" data-locale-option="ja">Japanese</option>
+                    <option value="de" data-locale-option="de">German</option>
+                    <option value="fr" data-locale-option="fr">French</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span data-i18n="desktop.shortcut_label">Global Show/Hide Hotkey</span>
+                  <div class="input-with-btn">
+                    <input id="prefShortcutInput" type="text" placeholder="Ctrl+Shift+H" />
+                    <button class="btn btn-secondary btn-sm" id="btnApplyShortcut" type="button" data-i18n="desktop.shortcut_apply">Apply Hotkey</button>
+                  </div>
+                </label>
+                <div class="inline-options inline-options-col">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="prefFollowGameCheck" checked />
+                    <span data-i18n="settings.follow_game">Switch to the estate you enter in-game</span>
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="prefAlwaysOnTopCheck" />
+                    <span data-i18n="desktop.always_on_top">Pin window always on top</span>
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="prefMinimizeToTrayCheck" checked />
+                    <span data-i18n="desktop.minimize_to_tray">Minimize to tray on close when RMP/Server is active</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <details class="panel settings-details" id="settingsDevDetails">
+            <summary class="details-summary" data-i18n="settings.group_dev">Developer tools</summary>
+            <p class="muted small-text" data-i18n="settings.dev_desc">Test helpers. You normally do not need these.</p>
+            <div class="button-row">
+              <button class="btn btn-secondary btn-sm" data-give-kit="indoor" type="button" data-i18n="topbar.kit_indoor">Indoor Kit</button>
+              <button class="btn btn-secondary btn-sm" data-give-kit="outdoor" type="button" data-i18n="topbar.kit_outdoor">Outdoor Kit</button>
+              <button class="btn btn-secondary btn-sm" data-give-kit="npc" type="button" data-i18n="topbar.kit_npc">NPC Kit</button>
+            </div>
+            <div class="field">
+              <span data-i18n="launcher.endpoints_title">Resolved Endpoints &amp; Launcher Status</span>
+              <pre class="mono-box" id="launcherEndpointsBox" data-i18n="launcher.endpoints_empty">Not checked yet.</pre>
+            </div>
+          </details>
+        </section>
+
+        <!-- ================= LOGS ================= -->
         <section class="tab-view" id="view-logs">
           <div class="view-header">
             <div>
               <h1 data-i18n="logs.title">Realtime Activity · Sync Logs</h1>
               <p class="muted" data-i18n="logs.subtitle">Streams ReMakePlace bridge events, preset applies, furniture moves, session state, and launcher events.</p>
             </div>
-            <div class="view-header-actions">
+          </div>
+
+          <div class="subtabs" role="tablist" id="logsSubtabs">
+            <button class="subtab active" data-logtab="activity" type="button" data-i18n="logs.tab_activity">Activity</button>
+            <button class="subtab" data-logtab="server" type="button" data-i18n="logs.tab_server">Server Console</button>
+            <button class="subtab" data-logtab="launcher" type="button" data-i18n="logs.tab_launcher">Launcher</button>
+          </div>
+
+          <div class="subview active" id="logview-activity">
+            <div class="toolbar">
+              <div class="segmented" id="logCategoryFilter" role="group">
+                <button class="seg-btn active" data-log-cat="all" type="button" data-i18n="logs.cat_all">All</button>
+                <button class="seg-btn" data-log-cat="session" type="button" data-i18n="logs.cat_session">Session</button>
+                <button class="seg-btn" data-log-cat="preset" type="button" data-i18n="logs.cat_preset">Presets</button>
+                <button class="seg-btn" data-log-cat="furniture" type="button" data-i18n="logs.cat_furniture">Furniture / RMP</button>
+                <button class="seg-btn" data-log-cat="env" type="button" data-i18n="logs.cat_env">Env / Snapshots</button>
+                <button class="seg-btn" data-log-cat="launcher" type="button" data-i18n="logs.cat_launcher">Launcher / System</button>
+              </div>
+              <input class="search-input" id="logsSearchInput" type="search" data-i18n-placeholder="logs.search_placeholder" placeholder="Filter by message, source (rmp/desktop_ui), estate ID..." />
               <button class="btn btn-secondary btn-sm" id="btnCopyLogs" type="button" data-i18n="logs.copy_all">Copy All</button>
               <button class="btn btn-secondary btn-sm" id="btnClearLogs" type="button" data-i18n="logs.clear">Clear</button>
             </div>
+            <div class="log-feed" id="logFeed"></div>
           </div>
 
-          <div class="toolbar">
-            <div class="segmented" id="logCategoryFilter" role="group">
-              <button class="seg-btn active" data-log-cat="all" type="button" data-i18n="logs.cat_all">All</button>
-              <button class="seg-btn" data-log-cat="session" type="button" data-i18n="logs.cat_session">Session</button>
-              <button class="seg-btn" data-log-cat="preset" type="button" data-i18n="logs.cat_preset">Presets</button>
-              <button class="seg-btn" data-log-cat="furniture" type="button" data-i18n="logs.cat_furniture">Furniture / RMP</button>
-              <button class="seg-btn" data-log-cat="env" type="button" data-i18n="logs.cat_env">Env / Snapshots</button>
-              <button class="seg-btn" data-log-cat="launcher" type="button" data-i18n="logs.cat_launcher">Launcher / System</button>
+          <div class="subview" id="logview-server">
+            <div class="button-row" style="justify-content: flex-end;">
+              <button class="btn btn-ghost btn-xs" id="btnClearServerLogs" type="button" data-i18n="server.console_clear">Clear Console</button>
             </div>
-            <input class="search-input" id="logsSearchInput" type="search" data-i18n-placeholder="logs.search_placeholder" placeholder="Filter by message, source (rmp/desktop_ui), estate ID..." />
+            <pre class="mono-box server-console-box log-fill" id="srvConsoleLogs" data-i18n="server.console_empty">No managed server output yet.</pre>
           </div>
 
-          <div class="log-feed" id="logFeed"></div>
+          <div class="subview" id="logview-launcher">
+            <pre class="mono-box launcher-log-box log-fill" id="launcherStatusLog"></pre>
+          </div>
         </section>
       </main>
     </div>

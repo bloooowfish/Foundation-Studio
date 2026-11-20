@@ -14,6 +14,9 @@ pub const DEFAULT_RMP_DIR: &str = r"D:\ReMakePlace_Latest";
 pub const DEFAULT_FOUNDATION_DIR: &str = r"E:\FF14\Repos\PrivateTest\Foundation";
 pub const DEFAULT_GLOBAL_SHORTCUT: &str = "Ctrl+Shift+H";
 pub const DAWNTRAIL_EXPANSION_ID: i32 = 5;
+/// Fixed single-user simulator account registered on the local Foundation login server.
+pub const DEFAULT_LOCAL_USERNAME: &str = "1";
+pub const DEFAULT_LOCAL_PASSWORD: &str = "2";
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -37,6 +40,9 @@ pub struct StudioSettings {
     pub minimize_to_tray_on_close: bool,
     #[serde(default = "default_ui_locale")]
     pub ui_locale: String,
+    /// `"<foundation root>|<username>"` once the local account was registered on that root.
+    #[serde(default)]
+    pub local_account_registered_for: Option<String>,
 }
 
 fn default_ui_locale() -> String {
@@ -68,8 +74,8 @@ impl Default for StudioSettings {
         Self {
             server_url: DEFAULT_SERVER_URL.to_string(),
             game_path,
-            username: String::new(),
-            password: String::new(),
+            username: DEFAULT_LOCAL_USERNAME.to_string(),
+            password: DEFAULT_LOCAL_PASSWORD.to_string(),
             language: 0,
             expansion_level: DAWNTRAIL_EXPANSION_ID,
             extra_arguments: String::new(),
@@ -84,6 +90,7 @@ impl Default for StudioSettings {
             always_on_top: false,
             minimize_to_tray_on_close: true,
             ui_locale: default_ui_locale(),
+            local_account_registered_for: None,
         }
     }
 }
@@ -110,6 +117,7 @@ struct StudioSettingsFile {
     always_on_top: bool,
     minimize_to_tray_on_close: bool,
     ui_locale: String,
+    local_account_registered_for: Option<String>,
 }
 
 impl Default for StudioSettingsFile {
@@ -139,6 +147,7 @@ impl StudioSettingsFile {
             always_on_top: settings.always_on_top,
             minimize_to_tray_on_close: settings.minimize_to_tray_on_close,
             ui_locale: crate::i18n::normalize_preference(&settings.ui_locale),
+            local_account_registered_for: settings.local_account_registered_for.clone(),
         }
     }
 
@@ -170,6 +179,10 @@ impl StudioSettingsFile {
             always_on_top: self.always_on_top,
             minimize_to_tray_on_close: self.minimize_to_tray_on_close,
             ui_locale: crate::i18n::normalize_preference(&self.ui_locale),
+            local_account_registered_for: self
+                .local_account_registered_for
+                .clone()
+                .filter(|s| !s.trim().is_empty()),
         };
         fill_detected_defaults(&mut settings);
         settings
@@ -261,6 +274,21 @@ pub fn managed_foundation_dir() -> PathBuf {
 
 pub fn managed_rmp_bridge_dir() -> PathBuf {
     managed_runtime_root().join("rmp-bridge")
+}
+
+/// Download cache for large runtime archives (e.g. the ReMakePlace release archive).
+pub fn managed_cache_dir() -> PathBuf {
+    local_appdata_dir().join("FoundationStudio").join("cache")
+}
+
+/// Falls back to the fixed local simulator account (`1` / `2`) when credentials are empty.
+pub fn apply_local_account_defaults(settings: &mut StudioSettings) {
+    if settings.username.trim().is_empty() {
+        settings.username = DEFAULT_LOCAL_USERNAME.to_string();
+    }
+    if settings.password.is_empty() {
+        settings.password = DEFAULT_LOCAL_PASSWORD.to_string();
+    }
 }
 
 fn is_foundation_root_dir(dir: &Path) -> bool {
@@ -409,6 +437,7 @@ pub fn import_legacy_launcher_json(raw: &str) -> Result<StudioSettings, String> 
         always_on_top: false,
         minimize_to_tray_on_close: true,
         ui_locale: default_ui_locale(),
+        local_account_registered_for: None,
     };
 
     fill_detected_defaults(&mut settings);
@@ -417,6 +446,7 @@ pub fn import_legacy_launcher_json(raw: &str) -> Result<StudioSettings, String> 
 }
 
 fn fill_detected_defaults(settings: &mut StudioSettings) {
+    apply_local_account_defaults(settings);
     if settings.game_path.trim().is_empty() && Path::new(DEFAULT_GAME_PATH).is_file() {
         settings.game_path = DEFAULT_GAME_PATH.to_string();
     }
@@ -650,6 +680,37 @@ mod tests {
         assert!(studio_path.is_file());
         // Original legacy file remained untouched.
         assert_eq!(fs::read_to_string(&legacy_path).unwrap(), legacy_text);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn empty_credentials_fall_back_to_fixed_local_account_and_flag_round_trips() {
+        let dir = std::env::temp_dir().join(format!(
+            "foundation_studio_local_acct_{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        let path = dir.join("settings.json");
+
+        let defaults = StudioSettings::default();
+        assert_eq!(defaults.username, DEFAULT_LOCAL_USERNAME);
+        assert_eq!(defaults.password, DEFAULT_LOCAL_PASSWORD);
+
+        let settings = StudioSettings {
+            username: "  ".to_string(),
+            password: String::new(),
+            local_account_registered_for: Some(r"C:\Foundation|1".to_string()),
+            ..Default::default()
+        };
+        save_settings_to(&settings, &path).unwrap();
+        let loaded = load_settings_from(&path, None);
+        assert_eq!(loaded.username, "1");
+        assert_eq!(loaded.password, "2");
+        assert_eq!(
+            loaded.local_account_registered_for.as_deref(),
+            Some(r"C:\Foundation|1")
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }
