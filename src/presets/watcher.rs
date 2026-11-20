@@ -214,7 +214,15 @@ fn read_shared_json_text_with_retry(
 }
 
 fn normalize_path_key(path: &Path) -> String {
-    let abs = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let abs = fs::canonicalize(path).unwrap_or_else(|_| {
+        if let (Some(parent), Some(name)) = (path.parent(), path.file_name())
+            && let Ok(canon_parent) = fs::canonicalize(parent)
+        {
+            canon_parent.join(name)
+        } else {
+            path.to_path_buf()
+        }
+    });
     let s = abs.to_string_lossy();
     s.strip_prefix(r"\\?\").unwrap_or(&s).to_ascii_lowercase()
 }
@@ -489,11 +497,27 @@ mod tests {
 
         manager.stop();
 
-        assert_eq!(received.len(), 1);
+        assert_eq!(received.len(), 1, "unexpected watcher events: {received:?}");
         assert_eq!(received[0].file_name, "live.json");
         let entry = received[0].entry.as_ref().unwrap();
         assert_eq!(entry.meta.as_ref().unwrap().size_key, "large");
         assert_eq!(entry.meta.as_ref().unwrap().indoor_count, 1);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn normalize_path_key_matches_before_and_after_file_creation() {
+        let dir =
+            std::env::temp_dir().join(format!("foundation_studio_normkey_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        let target = dir.join("NewFile.JSON");
+        let before = normalize_path_key(&target);
+        fs::write(&target, b"{}").unwrap();
+        let after = normalize_path_key(&target);
+        assert_eq!(before, after);
 
         let _ = fs::remove_dir_all(&dir);
     }

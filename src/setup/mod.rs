@@ -621,7 +621,13 @@ impl SetupManager {
             None,
             "Extracting rmp-bridge files...".to_string(),
         );
-        let res = extract_zip_to_dir(&tmp_zip, bridge_dir, strip_top, BRIDGE_PRESERVED);
+        let res = extract_zip_to_dir_filtered(
+            &tmp_zip,
+            bridge_dir,
+            strip_top,
+            BRIDGE_PRESERVED,
+            is_rmp_bridge_runtime_path,
+        );
         let _ = fs::remove_file(&tmp_zip);
         res?;
 
@@ -967,12 +973,49 @@ pub fn extract_oodle_dll_from_zip(zip_path: &Path, dest_paths: &[PathBuf]) -> Re
     Err("Archive did not contain oodle-network-shared.dll.".to_string())
 }
 
+pub fn is_rmp_bridge_runtime_path(rel: &Path) -> bool {
+    let rel_norm = rel
+        .components()
+        .filter_map(|comp| match comp {
+            Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+        .to_ascii_lowercase();
+
+    rel_norm == "scripts/prepare-shadow.ps1"
+        || rel_norm == "license"
+        || rel_norm == "readme.md"
+        || rel_norm == "mods/foundationbridge"
+        || rel_norm.starts_with("mods/foundationbridge/")
+}
+
 pub fn extract_zip_to_dir(
     zip_path: &Path,
     target_dir: &Path,
     strip_top_dir: bool,
     preserved_top_names: &[&str],
 ) -> Result<(), String> {
+    extract_zip_to_dir_filtered(
+        zip_path,
+        target_dir,
+        strip_top_dir,
+        preserved_top_names,
+        |_| true,
+    )
+}
+
+pub fn extract_zip_to_dir_filtered<F>(
+    zip_path: &Path,
+    target_dir: &Path,
+    strip_top_dir: bool,
+    preserved_top_names: &[&str],
+    mut allow_rel: F,
+) -> Result<(), String>
+where
+    F: FnMut(&Path) -> bool,
+{
     fs::create_dir_all(target_dir).map_err(|e| {
         format!(
             "Failed creating target directory {}: {e}",
@@ -1005,6 +1048,10 @@ pub fn extract_zip_to_dir(
         } else {
             raw_rel
         };
+
+        if !allow_rel(&rel) {
+            continue;
+        }
 
         if let Some(Component::Normal(first)) = rel.components().next() {
             let first_str = first.to_string_lossy();
@@ -1406,6 +1453,83 @@ mod tests {
                 .contains("game_path:")
         );
 
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn bridge_extraction_filters_out_dev_and_relay_files() {
+        let base = std::env::temp_dir().join(format!(
+            "foundation_setup_bridge_filter_{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&base);
+        let target = base.join("bridge");
+
+        let zip_path = make_zip(&[
+            ("rmp-bridge-main/scripts/prepare-shadow.ps1", b"ps1"),
+            (
+                "rmp-bridge-main/mods/FoundationBridge/Scripts/main.lua",
+                b"lua",
+            ),
+            ("rmp-bridge-main/mods/FoundationBridge/enabled.txt", b""),
+            ("rmp-bridge-main/LICENSE", b"gpl"),
+            ("rmp-bridge-main/README.md", b"readme"),
+            ("rmp-bridge-main/relay/Cargo.toml", b"[package]"),
+            ("rmp-bridge-main/relay/src/main.rs", b"fn main() {}"),
+            (
+                "rmp-bridge-main/mods/FoundationDumper/Scripts/main.lua",
+                b"dumper",
+            ),
+            ("rmp-bridge-main/scripts/run-dumper.ps1", b"dumper-ps1"),
+            (
+                "rmp-bridge-main/scripts/launch-rmp-bridge.ps1",
+                b"launch-ps1",
+            ),
+            ("rmp-bridge-main/.gitignore", b"target/"),
+            ("rmp-bridge-main/.github/workflows/release.yml", b"name: r"),
+        ]);
+
+        extract_zip_to_dir_filtered(
+            &zip_path,
+            &target,
+            true,
+            BRIDGE_PRESERVED,
+            is_rmp_bridge_runtime_path,
+        )
+        .unwrap();
+
+        assert!(target.join("scripts").join("prepare-shadow.ps1").is_file());
+        assert!(
+            target
+                .join("mods")
+                .join("FoundationBridge")
+                .join("Scripts")
+                .join("main.lua")
+                .is_file()
+        );
+        assert!(
+            target
+                .join("mods")
+                .join("FoundationBridge")
+                .join("enabled.txt")
+                .is_file()
+        );
+        assert!(target.join("LICENSE").is_file());
+        assert!(target.join("README.md").is_file());
+
+        assert!(!target.join("relay").exists());
+        assert!(!target.join("mods").join("FoundationDumper").exists());
+        assert!(!target.join("scripts").join("run-dumper.ps1").exists());
+        assert!(
+            !target
+                .join("scripts")
+                .join("launch-rmp-bridge.ps1")
+                .exists()
+        );
+        assert!(!target.join(".gitignore").exists());
+        assert!(!target.join(".github").exists());
+
+        let _ = fs::remove_file(&zip_path);
         let _ = fs::remove_dir_all(&base);
     }
 }
