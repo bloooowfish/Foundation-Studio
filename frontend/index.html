@@ -846,6 +846,7 @@
                 <div class="setup-row-actions">
                   <span class="badge badge-muted" id="setupStateFoundation" data-i18n="server.badge_checking">Checking</span>
                   <button class="btn btn-secondary btn-xs" data-setup-install="foundation" type="button" data-i18n="setup.btn_install_one">Install</button>
+                  <button class="btn btn-ghost btn-xs" id="btnOpenFoundationDir" type="button" data-i18n="runtime.btn_open_folder">Open Folder</button>
                 </div>
               </div>
               <div class="setup-row">
@@ -866,6 +867,7 @@
                 <div class="setup-row-actions">
                   <span class="badge badge-muted" id="setupStateConfig" data-i18n="server.badge_checking">Checking</span>
                   <button class="btn btn-secondary btn-xs" id="btnSetupGenerateConfig" type="button" data-i18n="setup.btn_generate_cfg">Generate</button>
+                  <button class="btn btn-ghost btn-xs" id="btnOpenConfigFile" type="button" data-i18n="runtime.btn_open_file">Open</button>
                 </div>
               </div>
             </div>
@@ -887,6 +889,7 @@
                   <button class="btn btn-primary btn-xs" id="btnRmpInstall" type="button" data-i18n="runtime.rmp_install">Install</button>
                   <button class="btn btn-secondary btn-xs" id="btnRmpRepair" type="button" data-i18n="runtime.rmp_repair">Repair</button>
                   <button class="btn btn-ghost btn-xs" id="btnRmpChangeDir" type="button" data-i18n="runtime.rmp_change_dir">Change Folder</button>
+                  <button class="btn btn-ghost btn-xs" id="btnOpenRmpDir" type="button" data-i18n="runtime.btn_open_folder">Open Folder</button>
                 </div>
               </div>
               <div class="setup-row">
@@ -897,6 +900,7 @@
                 <div class="setup-row-actions">
                   <span class="badge badge-muted" id="setupStateBridge" data-i18n="server.badge_checking">Checking</span>
                   <button class="btn btn-secondary btn-xs" data-setup-install="rmp_bridge" type="button" data-i18n="setup.btn_install_one">Install</button>
+                  <button class="btn btn-ghost btn-xs" id="btnOpenBridgeDir" type="button" data-i18n="runtime.btn_open_folder">Open Folder</button>
                 </div>
               </div>
               <div class="setup-row">
@@ -925,7 +929,10 @@
               <span class="radio-option-body">
                 <strong data-i18n="runtime.location_managed">Foundation Studio folder (recommended)</strong>
                 <span class="muted small-text" data-i18n="runtime.location_managed_desc">Studio keeps the files here and updates them for you.</span>
-                <span class="path-line"><span class="mono-inline" id="setupManagedPath">-</span></span>
+                <span class="path-line">
+                  <span class="mono-inline" id="setupManagedPath">-</span>
+                  <button class="btn btn-ghost btn-xs" id="btnOpenManagedDir" type="button" data-i18n="runtime.btn_open_folder">Open Folder</button>
+                </span>
               </span>
             </label>
             <label class="radio-option">
@@ -973,6 +980,7 @@
                 <div class="input-with-btn">
                   <input id="launcherGamePath" type="text" placeholder="D:\SquareEnix\...\game\ffxiv_dx11.exe" />
                   <button class="btn btn-secondary btn-sm" id="btnBrowseGamePath" type="button" data-i18n="launcher.browse">Browse</button>
+                  <button class="btn btn-ghost btn-sm" id="btnSettingsOpenGame" type="button" data-i18n="runtime.btn_open_folder">Open Folder</button>
                 </div>
               </label>
               <div class="form-grid form-grid-2">
@@ -1047,6 +1055,7 @@
                   <div class="input-with-btn">
                     <input id="srvFoundationRoot" type="text" placeholder="%LocalAppData%\FoundationStudio\runtime\foundation" />
                     <button class="btn btn-secondary btn-sm" id="btnBrowseFoundationRoot" type="button" data-i18n="launcher.browse">Browse</button>
+                    <button class="btn btn-ghost btn-sm" id="btnSettingsOpenFoundation" type="button" data-i18n="runtime.btn_open_folder">Open Folder</button>
                   </div>
                 </label>
                 <div class="form-grid form-grid-2">
@@ -1068,6 +1077,7 @@
                 </div>
                 <div class="button-row">
                   <button class="btn btn-ghost btn-sm" id="btnServerRefresh" type="button" data-i18n="server.recheck">Re-check Status</button>
+                  <button class="btn btn-ghost btn-sm" id="btnSettingsOpenConfig" type="button" data-i18n="runtime.btn_open_config">Open config.yaml</button>
                 </div>
               </div>
 
@@ -1078,23 +1088,39 @@
                   <div class="input-with-btn">
                     <input id="rmpPathInput" type="text" placeholder="D:\ReMakePlace" />
                     <button class="btn btn-secondary btn-sm" id="btnBrowseRmpPath" type="button" data-i18n="launcher.browse">Browse</button>
+                    <button class="btn btn-ghost btn-sm" id="btnSettingsOpenRmp" type="button" data-i18n="runtime.btn_open_folder">Open Folder</button>
                   </div>
                 </label>
               </div>
 
               <div class="panel">
                 <div class="panel-header"><h3 data-i18n="settings.group_app">App</h3></div>
-                <label class="field">
-                  <span data-i18n="desktop.ui_language">UI Language</span>
-                  <select id="prefUiLocaleSelect">
-                    <option value="auto" data-i18n="desktop.lang_auto">Auto (System Locale)</option>
-                    <option value="ko" data-locale-option="ko">Korean</option>
-                    <option value="en" data-locale-option="en">English</option>
-                    <option value="ja" data-locale-option="ja">Japanese</option>
-                    <option value="de" data-locale-option="de">German</option>
-                    <option value="fr" data-locale-option="fr">French</option>
-                  </select>
-                </label>
+                <div class="form-grid form-grid-2">
+                  <label class="field">
+                    <span data-i18n="desktop.ui_language">UI Language</span>
+                    <select id="prefUiLocaleSelect">
+                      <option value="auto" data-i18n="desktop.lang_auto">Auto (System Locale)</option>
+                      <option value="ko" data-locale-option="ko">Korean</option>
+                      <option value="en" data-locale-option="en">English</option>
+                      <option value="ja" data-locale-option="ja">Japanese</option>
+                      <option value="de" data-locale-option="de">German</option>
+                      <option value="fr" data-locale-option="fr">French</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span data-i18n="desktop.game_data_language">Game Data Language</span>
+                    <select id="prefGameDataLocaleSelect">
+                      <option value="follow_client" data-i18n="desktop.game_lang_follow_client">Follow Client Language</option>
+                      <option value="follow_ui" data-i18n="desktop.game_lang_follow_ui">Follow UI Language</option>
+                      <option value="ja" data-locale-option="ja">Japanese</option>
+                      <option value="en" data-locale-option="en">English</option>
+                      <option value="de" data-locale-option="de">German</option>
+                      <option value="fr" data-locale-option="fr">French</option>
+                      <option value="ko" data-locale-option="ko">Korean</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="muted small-text" id="prefGameDataLocaleHint" style="margin-bottom: 8px;"></div>
                 <label class="field">
                   <span data-i18n="desktop.shortcut_label">Global Show/Hide Hotkey</span>
                   <div class="input-with-btn">

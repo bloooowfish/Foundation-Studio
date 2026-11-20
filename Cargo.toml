@@ -33,6 +33,7 @@ sha2 = "0.10"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 sevenz-rust2 = { version = "0.25", default-features = false, features = ["compress", "util", "bzip2", "ppmd", "deflate"] }
 rmp-bridge-relay = { path = "../rmp-bridge/relay" }
+physis = { git = "https://github.com/redstrate/physis", rev = "c923a93e4724c1f911c5f217816b91fa9d09b504", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [

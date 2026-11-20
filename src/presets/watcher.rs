@@ -145,12 +145,19 @@ pub fn write_text_atomic(target: &Path, text: &str) -> Result<(), String> {
 }
 
 pub fn reveal_in_explorer(path: &Path) -> Result<(), String> {
+    if path.as_os_str().is_empty() {
+        return Err("Path is empty.".to_string());
+    }
     let target = fs::canonicalize(path)
         .map(|p| {
             let s = p.to_string_lossy();
             PathBuf::from(s.strip_prefix(r"\\?\").unwrap_or(&s))
         })
         .unwrap_or_else(|_| path.to_path_buf());
+
+    if !target.exists() {
+        return Err(format!("Path does not exist: {}", target.display()));
+    }
 
     if target.is_dir() {
         Command::new("explorer.exe")
@@ -489,5 +496,13 @@ mod tests {
         assert_eq!(entry.meta.as_ref().unwrap().indoor_count, 1);
 
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn reveal_in_explorer_rejects_empty_and_missing_paths() {
+        assert!(reveal_in_explorer(Path::new("")).is_err());
+        let missing = std::env::temp_dir().join("foundation_studio_definitely_missing_12345");
+        let _ = fs::remove_file(&missing);
+        assert!(reveal_in_explorer(&missing).is_err());
     }
 }

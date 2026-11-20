@@ -8,6 +8,7 @@ pub struct PresetFixtureEntry {
     pub raw_kind: String,
     pub name: String,
     pub color: String,
+    pub item_id: u32,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -149,7 +150,8 @@ pub fn parse_preset_metadata(raw_json: &str) -> Result<LocalPresetMeta, String> 
                 continue;
             }
             let color = f.get("color").and_then(Value::as_str).unwrap_or_default();
-            interior_fixtures.push(build_fixture_entry(kind, name, color));
+            let item_id = f.get("itemId").and_then(Value::as_u64).unwrap_or(0) as u32;
+            interior_fixtures.push(build_fixture_entry(kind, name, color, item_id));
         }
     }
 
@@ -173,7 +175,8 @@ pub fn parse_preset_metadata(raw_json: &str) -> Result<LocalPresetMeta, String> 
                 continue;
             }
             let color = f.get("color").and_then(Value::as_str).unwrap_or_default();
-            exterior_fixtures.push(build_fixture_entry(kind, name, color));
+            let item_id = f.get("itemId").and_then(Value::as_u64).unwrap_or(0) as u32;
+            exterior_fixtures.push(build_fixture_entry(kind, name, color, item_id));
         }
     }
 
@@ -273,7 +276,7 @@ fn count_furniture_recursive(arr: &[Value], stats: &mut FurnitureStats) {
     }
 }
 
-fn build_fixture_entry(kind: &str, name: &str, color: &str) -> PresetFixtureEntry {
+fn build_fixture_entry(kind: &str, name: &str, color: &str, item_id: u32) -> PresetFixtureEntry {
     let raw_kind = kind.trim().to_string();
     let lower = raw_kind.to_ascii_lowercase();
     let kind_key = match lower.as_str() {
@@ -302,6 +305,7 @@ fn build_fixture_entry(kind: &str, name: &str, color: &str) -> PresetFixtureEntr
         raw_kind,
         name: name.to_string(),
         color: color.trim().to_string(),
+        item_id,
     }
 }
 
@@ -317,7 +321,7 @@ mod tests {
             "interiorFixture": [
                 { "type": "District", "name": "Dark Minimalist" },
                 { "type": "Side Door", "name": "Ignored Door" },
-                { "type": "Wall", "name": "Blank White Interior Wall" }
+                { "type": "Wall", "name": "Blank White Interior Wall", "itemId": 20718 }
             ],
             "interiorFurniture": [
                 {
@@ -359,6 +363,7 @@ mod tests {
                 raw_kind: "Wall".to_string(),
                 name: "Blank White Interior Wall".to_string(),
                 color: String::new(),
+                item_id: 20718,
             }]
         );
     }

@@ -96,6 +96,7 @@
       alwaysOnTop: !!$('prefAlwaysOnTopCheck').checked,
       minimizeToTrayOnClose: !!$('prefMinimizeToTrayCheck').checked,
       uiLocale: $('prefUiLocaleSelect')?.value || I18n.preference(),
+      gameDataLocale: $('prefGameDataLocaleSelect')?.value || I18n.gamePreference(),
     };
   }
 
@@ -139,12 +140,79 @@
     el.textContent = text;
   }
 
+  function activeFoundationDir() {
+    return (setupStatus?.activeFoundationDir || $('srvFoundationRoot')?.value || '').trim();
+  }
+
+  function activeConfigPath() {
+    const root = activeFoundationDir();
+    return root ? `${root.replace(/[\\/]+$/, '')}\\config.yaml` : '';
+  }
+
+  function managedRuntimeRootDir() {
+    const mf = (setupStatus?.managedFoundationDir || '').trim();
+    return mf ? mf.replace(/[\\/]foundation[\\/]?$/i, '') : '';
+  }
+
+  async function openPathInExplorer(path) {
+    const target = String(path || '').trim();
+    if (!target) return;
+    try {
+      await Bridge.revealInExplorer(target);
+    } catch (err) {
+      Studio?.toast(I18n.t('presets.reveal_fail', { error: err.message }), true);
+    }
+  }
+
+  function syncOpenPathButtons() {
+    const fDir = activeFoundationDir();
+    const hasCfg = !!setupStatus?.foundationHasConfig && !!fDir;
+    const rmpPath = ($('rmpPathInput')?.value || '').trim();
+    const gamePath = ($('launcherGamePath')?.value || '').trim();
+    const bridgeDir = (setupStatus?.activeBridgeDir || '').trim();
+    const managedDir = managedRuntimeRootDir();
+
+    if ($('btnOpenFoundationDir')) $('btnOpenFoundationDir').disabled = !fDir;
+    if ($('btnOpenConfigFile')) $('btnOpenConfigFile').disabled = !hasCfg;
+    if ($('btnOpenRmpDir')) $('btnOpenRmpDir').disabled = !rmpPath;
+    if ($('btnOpenBridgeDir')) $('btnOpenBridgeDir').disabled = !bridgeDir;
+    if ($('btnOpenManagedDir')) $('btnOpenManagedDir').disabled = !managedDir;
+    if ($('btnSettingsOpenGame')) $('btnSettingsOpenGame').disabled = !gamePath;
+    if ($('btnSettingsOpenFoundation')) $('btnSettingsOpenFoundation').disabled = !fDir;
+    if ($('btnSettingsOpenConfig')) $('btnSettingsOpenConfig').disabled = !hasCfg;
+    if ($('btnSettingsOpenRmp')) $('btnSettingsOpenRmp').disabled = !rmpPath;
+  }
+
+  function renderGameDataLocaleHint() {
+    const el = $('prefGameDataLocaleHint');
+    if (!el) return;
+    const info = I18n.gameDataInfo ? I18n.gameDataInfo() : null;
+    if (!info || !info.gameDirValid) {
+      el.textContent = I18n.t('desktop.game_data_hint_no_game');
+      return;
+    }
+    const langs = Array.isArray(info.availableLanguages) ? info.availableLanguages.join(', ') : '';
+    if (info.requestedInSqpack) {
+      el.textContent = I18n.t('desktop.game_data_hint_ok', {
+        effective: info.effectiveLocale,
+        langs: langs || '-',
+      });
+    } else {
+      el.textContent = I18n.t('desktop.game_data_hint_fallback', {
+        requested: info.requestedLocale,
+        effective: info.effectiveLocale,
+        langs: langs || '-',
+      });
+    }
+  }
+
   function renderRmpPathLabels() {
     const path = $('rmpPathInput').value.trim();
     const homePath = $('homeRmpPath');
     if (homePath) homePath.textContent = path || I18n.t('home.rmp_path_none');
     const rtPath = $('runtimeRmpPath');
     if (rtPath) rtPath.textContent = path || '-';
+    syncOpenPathButtons();
   }
 
   // ---- ReMakePlace live sync ----
@@ -568,6 +636,7 @@
     renderInstallLocation();
     renderOnboarding();
     renderUpdateInfo();
+    syncOpenPathButtons();
   }
 
   async function refreshSetupStatus() {
@@ -790,6 +859,9 @@
     await refreshGameVersion({ quiet: false });
     await persistFormSettings({ quiet: true });
     await refreshSetupStatus();
+    await I18n.refreshGameDataInfo().catch(() => null);
+    renderGameDataLocaleHint();
+    syncOpenPathButtons();
   }
 
   async function pickGamePath(current) {
@@ -808,10 +880,52 @@
     $('prefUiLocaleSelect')?.addEventListener('change', async (ev) => {
       try {
         await I18n.setLocale(ev.target.value);
+        if (I18n.gamePreference() === 'follow_ui') {
+          await I18n.refreshGameDataInfo().catch(() => null);
+        }
+        renderGameDataLocaleHint();
       } catch (err) {
         Studio?.toast(I18n.t('launcher.settings_save_fail', { error: err.message }), true);
       }
     });
+
+    $('prefGameDataLocaleSelect')?.addEventListener('change', async (ev) => {
+      try {
+        await I18n.setGameDataLocale(ev.target.value, Number($('launcherLanguage')?.value) || 0);
+        renderGameDataLocaleHint();
+      } catch (err) {
+        Studio?.toast(I18n.t('launcher.settings_save_fail', { error: err.message }), true);
+      }
+    });
+
+    $('launcherLanguage')?.addEventListener('change', async (ev) => {
+      try {
+        await persistFormSettings({ quiet: true });
+        I18n.syncClientLanguage(Number(ev.target.value) || 0);
+        await I18n.refreshGameDataInfo().catch(() => null);
+        renderGameDataLocaleHint();
+      } catch {
+        // Non-fatal; language selection remains active.
+      }
+    });
+
+    ['launcherGamePath', 'srvFoundationRoot', 'rmpPathInput'].forEach((id) => {
+      $(id)?.addEventListener('input', syncOpenPathButtons);
+    });
+
+    $('btnOpenFoundationDir')?.addEventListener('click', () => openPathInExplorer(activeFoundationDir()));
+    $('btnOpenConfigFile')?.addEventListener('click', () => openPathInExplorer(activeConfigPath()));
+    $('btnOpenRmpDir')?.addEventListener('click', () => openPathInExplorer($('rmpPathInput')?.value));
+    $('btnOpenBridgeDir')?.addEventListener('click', () => openPathInExplorer(setupStatus?.activeBridgeDir));
+    $('btnOpenManagedDir')?.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      openPathInExplorer(managedRuntimeRootDir());
+    });
+    $('btnSettingsOpenGame')?.addEventListener('click', () => openPathInExplorer($('launcherGamePath')?.value));
+    $('btnSettingsOpenFoundation')?.addEventListener('click', () => openPathInExplorer(activeFoundationDir()));
+    $('btnSettingsOpenConfig')?.addEventListener('click', () => openPathInExplorer(activeConfigPath()));
+    $('btnSettingsOpenRmp')?.addEventListener('click', () => openPathInExplorer($('rmpPathInput')?.value));
 
     const togglePin = async (targetPinned) => {
       try {
@@ -1165,7 +1279,11 @@
 
   async function init() {
     const settings = await Bridge.getSettings();
-    await I18n.init(settings?.uiLocale || 'auto');
+    await I18n.init(
+      settings?.uiLocale || 'auto',
+      settings?.gameDataLocale || 'follow_client',
+      Number(settings?.language) || 0
+    );
 
     I18n.onChange(() => {
       renderPinState(alwaysOnTop);
@@ -1174,6 +1292,7 @@
       renderServerStatus(serverStatus);
       renderSetupStatus(setupStatus);
       renderRmpPathLabels();
+      renderGameDataLocaleHint();
       renderServerConsole();
     });
 
@@ -1197,6 +1316,9 @@
     $('srvFoundationRoot').value = settings.foundationRoot || '';
     $('prefShortcutInput').value = currentShortcut;
     $('prefMinimizeToTrayCheck').checked = settings.minimizeToTrayOnClose !== false;
+    if ($('prefGameDataLocaleSelect')) {
+      $('prefGameDataLocaleSelect').value = settings.gameDataLocale || 'follow_client';
+    }
     renderPinState(!!settings.alwaysOnTop);
     renderRmpPathLabels();
 
@@ -1210,7 +1332,10 @@
       refreshServerStatus(),
       refreshSetupStatus(),
       Bridge.getServerLogs().catch(() => []),
+      I18n.refreshGameDataInfo().catch(() => null),
     ]);
+    renderGameDataLocaleHint();
+    syncOpenPathButtons();
     if (rmp) renderRmpStatus(rmp);
     if (setupSt) renderSetupStatus(setupSt);
     if (Array.isArray(existingLogs) && existingLogs.length) {

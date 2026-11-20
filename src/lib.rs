@@ -1,3 +1,4 @@
+pub mod gamedata;
 pub mod housing;
 pub mod i18n;
 pub mod kawari;
@@ -48,6 +49,7 @@ pub struct ToastKeyPayload {
 
 pub struct AppState {
     pub settings: Arc<Mutex<StudioSettings>>,
+    pub gamedata: Arc<gamedata::GameDataCache>,
     pub housing: Arc<housing::HousingClientState>,
     pub preset_watcher: Arc<PresetWatcherManager>,
     pub rmp: Arc<RmpController>,
@@ -125,6 +127,54 @@ async fn set_ui_locale_cmd(state: State<'_, AppState>, locale: String) -> Result
 }
 
 #[tauri::command]
+async fn get_game_data_info_cmd(
+    state: State<'_, AppState>,
+) -> Result<gamedata::GameDataInfo, String> {
+    let snapshot = state.settings.lock().map(|g| g.clone()).unwrap_or_default();
+    let cache = Arc::clone(&state.gamedata);
+    tokio::task::spawn_blocking(move || cache.info(&snapshot))
+        .await
+        .map_err(|e| format!("Failed to inspect game data: {e}"))
+}
+
+#[tauri::command]
+async fn set_game_data_locale_cmd(
+    state: State<'_, AppState>,
+    locale: String,
+) -> Result<gamedata::GameDataInfo, String> {
+    let pref = i18n::normalize_game_data_locale(&locale);
+    let updated = {
+        let mut guard = state
+            .settings
+            .lock()
+            .map_err(|_| "Failed to lock settings".to_string())?;
+        guard.game_data_locale = pref;
+        guard.clone()
+    };
+    save_settings(&updated)?;
+    let cache = Arc::clone(&state.gamedata);
+    tokio::task::spawn_blocking(move || cache.info(&updated))
+        .await
+        .map_err(|e| format!("Failed to inspect game data: {e}"))
+}
+
+#[tauri::command]
+async fn resolve_game_names_cmd(
+    state: State<'_, AppState>,
+    item_ids: Vec<u32>,
+    stain_ids: Vec<u8>,
+    names: Vec<String>,
+) -> Result<gamedata::ResolvedGameNames, String> {
+    let snapshot = state.settings.lock().map(|g| g.clone()).unwrap_or_default();
+    let cache = Arc::clone(&state.gamedata);
+    tokio::task::spawn_blocking(move || {
+        cache.resolve_names(&snapshot, &item_ids, &stain_ids, &names)
+    })
+    .await
+    .map_err(|e| format!("Failed to resolve game names: {e}"))
+}
+
+#[tauri::command]
 fn save_settings_cmd(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -135,6 +185,7 @@ fn save_settings_cmd(
     normalized.language = normalized.language.clamp(0, 3);
     normalized.expansion_level = normalize_expansion_level(normalized.expansion_level);
     normalized.ui_locale = i18n::normalize_preference(&normalized.ui_locale);
+    normalized.game_data_locale = i18n::normalize_game_data_locale(&normalized.game_data_locale);
     settings::apply_local_account_defaults(&mut normalized);
     preserve_backend_owned_fields(&state, &mut normalized);
     save_settings(&normalized)?;
@@ -1020,6 +1071,7 @@ pub fn run() {
     let initial_settings = load_settings();
     let app_state = AppState {
         settings: Arc::new(Mutex::new(initial_settings.clone())),
+        gamedata: Arc::new(gamedata::GameDataCache::new()),
         housing: Arc::new(housing::HousingClientState::new(
             &initial_settings.server_url,
         )),
@@ -1174,6 +1226,9 @@ pub fn run() {
             get_settings,
             get_system_locale_cmd,
             set_ui_locale_cmd,
+            get_game_data_info_cmd,
+            set_game_data_locale_cmd,
+            resolve_game_names_cmd,
             save_settings_cmd,
             read_game_version_cmd,
             resolve_remakeplace_path_cmd,

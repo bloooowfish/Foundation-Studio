@@ -81,6 +81,43 @@ pub fn normalize_preference(pref: &str) -> String {
     resolve_locale(&trimmed).to_string()
 }
 
+pub fn normalize_game_data_locale(pref: &str) -> String {
+    let trimmed = pref.trim().to_ascii_lowercase();
+    if trimmed.is_empty() || trimmed == "follow_client" {
+        return "follow_client".to_string();
+    }
+    if trimmed == "follow_ui" {
+        return "follow_ui".to_string();
+    }
+    let primary = trimmed.split(['-', '_', '.']).next().unwrap_or_default();
+    match primary {
+        "ja" | "en" | "de" | "fr" | "ko" => primary.to_string(),
+        _ => "follow_client".to_string(),
+    }
+}
+
+pub fn client_language_to_locale(language: i32) -> &'static str {
+    match language {
+        0 => "ja",
+        1 => "en",
+        2 => "de",
+        3 => "fr",
+        _ => "en",
+    }
+}
+
+pub fn resolve_game_data_locale(
+    pref: &str,
+    client_language: i32,
+    ui_locale_pref: &str,
+) -> &'static str {
+    match normalize_game_data_locale(pref).as_str() {
+        "follow_client" => client_language_to_locale(client_language),
+        "follow_ui" => resolve_locale(ui_locale_pref),
+        other => normalize_locale_tag(other),
+    }
+}
+
 pub fn tr(locale_pref: &str, key: &str) -> String {
     let code = resolve_locale(locale_pref);
     let dicts = dictionaries();

@@ -406,6 +406,7 @@
         rawKind: kind,
         name,
         color: f.color ? String(f.color).trim() : '',
+        itemId: Number(f.itemId) || 0,
       });
     }
     return out;
@@ -1245,7 +1246,7 @@
     $('navCountLogs').textContent = state.logs.length;
 
     const totalFurn = est ? (est.indoor_count + est.outdoor_count) : 0;
-    const snapCount = state.selectedEstateDetail?.estate?.land_ident === est?.row?.land_ident
+    const snapCount = est && state.selectedEstateDetail?.estate?.land_ident === est.row.land_ident
       ? (state.selectedEstateDetail.snapshots?.length ?? est.snapshot_count ?? 0)
       : (est?.snapshot_count ?? 0);
     $('navCountFurniture').textContent = totalFurn;
@@ -1524,6 +1525,25 @@
         renderFixtureGroup(I18n.t('presets.detail_int_fixtures'), preset.interiorFixtures),
         renderFixtureGroup(I18n.t('presets.detail_ext_fixtures'), preset.exteriorFixtures),
       ].join('');
+
+      const reqIds = [];
+      const reqNames = [];
+      for (const raw of [...(preset.interiorFixtures || []), ...(preset.exteriorFixtures || [])]) {
+        if (typeof raw === 'string') {
+          const m = raw.match(/^([^:]+):\s*(.+)$/);
+          const nm = (m ? m[2] : raw).trim();
+          if (nm) reqNames.push(nm);
+        } else if (raw && typeof raw === 'object') {
+          const id = Number(raw.itemId) || 0;
+          if (id > 0) reqIds.push(id);
+          else if (raw.name) reqNames.push(String(raw.name).trim());
+        }
+      }
+      I18n.resolveGameNames(reqIds, [], reqNames)
+        .then((changed) => {
+          if (changed) renderPresets();
+        })
+        .catch(() => {});
     }
   }
 
@@ -1531,15 +1551,27 @@
     if (!entry) return null;
     if (typeof entry === 'string') {
       const m = entry.match(/^([^:]+):\s*(.+)$/);
-      if (!m) return { kind: '', name: entry.trim(), color: '' };
+      if (!m) {
+        const rawName = entry.trim();
+        return { kind: '', name: I18n.getItemName(0, rawName), color: '', itemId: 0 };
+      }
       const key = I18n.mapFixtureKindToKey ? I18n.mapFixtureKindToKey(m[1]) : null;
-      return { kind: key ? I18n.t(`game.fixtures.${key}`) : m[1].trim(), name: m[2].trim(), color: '' };
+      const rawName = m[2].trim();
+      return {
+        kind: key ? I18n.t(`game.fixtures.${key}`) : m[1].trim(),
+        name: I18n.getItemName(0, rawName),
+        color: '',
+        itemId: 0,
+      };
     }
     const key = entry.kindKey || (I18n.mapFixtureKindToKey ? I18n.mapFixtureKindToKey(entry.rawKind || entry.type) : null);
+    const itemId = Number(entry.itemId) || 0;
+    const rawName = String(entry.name || '').trim();
     return {
       kind: key ? I18n.t(`game.fixtures.${key}`) : String(entry.rawKind || entry.type || '').trim(),
-      name: String(entry.name || '').trim(),
+      name: I18n.getItemName(itemId, rawName),
       color: String(entry.color || '').trim(),
+      itemId,
     };
   }
 
@@ -1605,7 +1637,9 @@
   }
 
   function renderFurniture() {
-    const snap = state.bridgeSnapshot?.land_ident === state.selectedLandIdent ? state.bridgeSnapshot : null;
+    const snap = state.selectedLandIdent !== null && state.bridgeSnapshot?.land_ident === state.selectedLandIdent
+      ? state.bridgeSnapshot
+      : null;
     const indoorList = snap?.indoor || [];
     const outdoorList = snap?.outdoor || [];
     $('furnIndoorCount').textContent = indoorList.length;
@@ -1617,15 +1651,16 @@
     const search = $('furnSearchInput').value.trim().toLowerCase();
     const dyedOnly = $('furnDyedOnly').checked;
     const sortBy = $('furnSortSelect').value;
+    const furnDisplayName = (item) => I18n.getItemName(item.item_id, item.name) || item.name;
 
     const list = getActiveFurnitureList().filter((item) => {
       if (dyedOnly && !(item.stain > 0 || item.color_hex)) return false;
       if (!search) return true;
-      return `${item.name} ${item.item_id} ${item.flat_slot}`.toLowerCase().includes(search);
+      return `${furnDisplayName(item)} ${item.name} ${item.item_id} ${item.flat_slot}`.toLowerCase().includes(search);
     });
 
     list.sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name, I18n.locale());
+      if (sortBy === 'name') return furnDisplayName(a).localeCompare(furnDisplayName(b), I18n.gameLocale());
       if (sortBy === 'y') return b.pos_y - a.pos_y;
       return a.flat_slot - b.flat_slot;
     });
@@ -1646,12 +1681,13 @@
         const swatch = /^[0-9a-fA-F]{6}$/.test(cleanHex)
           ? `<span class="swatch" style="background:#${cleanHex}"></span>`
           : '';
+        const stainText = item.stain > 0 ? (I18n.getStainName(item.stain) || String(item.stain)) : '-';
         return `
           <tr class="${item.flat_slot === state.selectedFurnSlot ? 'selected' : ''}" data-furn-slot="${item.flat_slot}">
             <td>${item.flat_slot}</td>
-            <td><strong>${esc(item.name)}</strong></td>
+            <td><strong>${esc(furnDisplayName(item))}</strong></td>
             <td>#${item.item_id}</td>
-            <td>${swatch}${item.stain > 0 ? item.stain : '-'}</td>
+            <td>${swatch}${esc(stainText)}</td>
             <td>${x.toFixed(2)}</td>
             <td>${y.toFixed(2)}</td>
             <td>${z.toFixed(2)}</td>
@@ -1673,22 +1709,32 @@
       $('tfRotSlider').value = 0;
       $('btnTfRevert').disabled = true;
       $('btnTfCommit').disabled = true;
-      return;
+    } else {
+      $('tfItemName').textContent = furnDisplayName(activeItem);
+      $('tfItemMeta').textContent = `Item #${activeItem.item_id} · Catalog #${activeItem.catalog_id}`;
+      const scopeLabel = I18n.t(state.furnScope === 'indoor' ? 'furniture.indoor_tab' : 'furniture.outdoor_tab');
+      $('tfSlotBadge').textContent = `${scopeLabel} #${activeItem.flat_slot}`;
+      if (document.activeElement !== $('tfPosX')) $('tfPosX').value = state.transformDraft.x.toFixed(3);
+      if (document.activeElement !== $('tfPosY')) $('tfPosY').value = state.transformDraft.y.toFixed(3);
+      if (document.activeElement !== $('tfPosZ')) $('tfPosZ').value = state.transformDraft.z.toFixed(3);
+      if (document.activeElement !== $('tfRotDeg')) $('tfRotDeg').value = state.transformDraft.rotDeg.toFixed(1);
+      if (document.activeElement !== $('tfRotSlider')) {
+        $('tfRotSlider').value = Math.max(-180, Math.min(180, state.transformDraft.rotDeg));
+      }
+      $('btnTfRevert').disabled = false;
+      $('btnTfCommit').disabled = $('btnTfCommit').dataset.busy === '1';
     }
 
-    $('tfItemName').textContent = activeItem.name;
-    $('tfItemMeta').textContent = `Item #${activeItem.item_id} · Catalog #${activeItem.catalog_id}`;
-    const scopeLabel = I18n.t(state.furnScope === 'indoor' ? 'furniture.indoor_tab' : 'furniture.outdoor_tab');
-    $('tfSlotBadge').textContent = `${scopeLabel} #${activeItem.flat_slot}`;
-    if (document.activeElement !== $('tfPosX')) $('tfPosX').value = state.transformDraft.x.toFixed(3);
-    if (document.activeElement !== $('tfPosY')) $('tfPosY').value = state.transformDraft.y.toFixed(3);
-    if (document.activeElement !== $('tfPosZ')) $('tfPosZ').value = state.transformDraft.z.toFixed(3);
-    if (document.activeElement !== $('tfRotDeg')) $('tfRotDeg').value = state.transformDraft.rotDeg.toFixed(1);
-    if (document.activeElement !== $('tfRotSlider')) {
-      $('tfRotSlider').value = Math.max(-180, Math.min(180, state.transformDraft.rotDeg));
+    if (snap) {
+      const allItems = [...indoorList, ...outdoorList];
+      const itemIds = allItems.map((it) => it.item_id);
+      const stainIds = allItems.map((it) => it.stain).filter((s) => s > 0);
+      I18n.resolveGameNames(itemIds, stainIds, [])
+        .then((changed) => {
+          if (changed) renderFurniture();
+        })
+        .catch(() => {});
     }
-    $('btnTfRevert').disabled = false;
-    $('btnTfCommit').disabled = $('btnTfCommit').dataset.busy === '1';
   }
 
   const ENV_ACTION_BUTTON_IDS = [
@@ -1748,7 +1794,7 @@
     }
 
     syncEnvironmentButtonStates(estSummary);
-    const detail = state.selectedEstateDetail?.estate?.land_ident === estSummary.row.land_ident
+    const detail = estSummary.row && state.selectedEstateDetail?.estate?.land_ident === estSummary.row.land_ident
       ? state.selectedEstateDetail
       : null;
     const row = detail?.estate || estSummary.row;
@@ -2904,13 +2950,17 @@
 
   async function boot() {
     let uiLocale = 'auto';
+    let gameDataLocale = 'follow_client';
+    let clientLang = 0;
     try {
       const settings = await Bridge.getSettings();
       uiLocale = settings?.uiLocale || 'auto';
+      gameDataLocale = settings?.gameDataLocale || 'follow_client';
+      clientLang = Number(settings?.language) || 0;
     } catch {
       // Fall back to system locale detection inside FoundationI18n.
     }
-    await I18n.init(uiLocale);
+    await I18n.init(uiLocale, gameDataLocale, clientLang);
     I18n.onChange(() => {
       setSseConnected(state.sseConnected);
       renderWatchedDirs();
@@ -2926,6 +2976,7 @@
       applyAvailability();
     }, 3000);
     connectWatcherAndDropEvents();
+    I18n.refreshGameDataInfo().catch(() => {});
     refreshLocalPresets();
     refreshAll(null, { forceSync: true, silentError: true });
   }

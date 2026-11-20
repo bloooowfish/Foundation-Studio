@@ -40,6 +40,8 @@ pub struct StudioSettings {
     pub minimize_to_tray_on_close: bool,
     #[serde(default = "default_ui_locale")]
     pub ui_locale: String,
+    #[serde(default = "default_game_data_locale")]
+    pub game_data_locale: String,
     /// `"<foundation root>|<username>"` once the local account was registered on that root.
     #[serde(default)]
     pub local_account_registered_for: Option<String>,
@@ -47,6 +49,10 @@ pub struct StudioSettings {
 
 fn default_ui_locale() -> String {
     "auto".to_string()
+}
+
+fn default_game_data_locale() -> String {
+    "follow_client".to_string()
 }
 
 impl Default for StudioSettings {
@@ -90,6 +96,7 @@ impl Default for StudioSettings {
             always_on_top: false,
             minimize_to_tray_on_close: true,
             ui_locale: default_ui_locale(),
+            game_data_locale: default_game_data_locale(),
             local_account_registered_for: None,
         }
     }
@@ -117,6 +124,7 @@ struct StudioSettingsFile {
     always_on_top: bool,
     minimize_to_tray_on_close: bool,
     ui_locale: String,
+    game_data_locale: String,
     local_account_registered_for: Option<String>,
 }
 
@@ -147,6 +155,7 @@ impl StudioSettingsFile {
             always_on_top: settings.always_on_top,
             minimize_to_tray_on_close: settings.minimize_to_tray_on_close,
             ui_locale: crate::i18n::normalize_preference(&settings.ui_locale),
+            game_data_locale: crate::i18n::normalize_game_data_locale(&settings.game_data_locale),
             local_account_registered_for: settings.local_account_registered_for.clone(),
         }
     }
@@ -179,6 +188,7 @@ impl StudioSettingsFile {
             always_on_top: self.always_on_top,
             minimize_to_tray_on_close: self.minimize_to_tray_on_close,
             ui_locale: crate::i18n::normalize_preference(&self.ui_locale),
+            game_data_locale: crate::i18n::normalize_game_data_locale(&self.game_data_locale),
             local_account_registered_for: self
                 .local_account_registered_for
                 .clone()
@@ -437,6 +447,7 @@ pub fn import_legacy_launcher_json(raw: &str) -> Result<StudioSettings, String> 
         always_on_top: false,
         minimize_to_tray_on_close: true,
         ui_locale: default_ui_locale(),
+        game_data_locale: default_game_data_locale(),
         local_account_registered_for: None,
     };
 

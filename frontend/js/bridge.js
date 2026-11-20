@@ -106,6 +106,10 @@
     getSettings: () => invoke('get_settings'),
     getSystemLocale: () => invoke('get_system_locale_cmd'),
     setUiLocale: (locale) => invoke('set_ui_locale_cmd', { locale }),
+    getGameDataInfo: () => invoke('get_game_data_info_cmd'),
+    setGameDataLocale: (locale) => invoke('set_game_data_locale_cmd', { locale }),
+    resolveGameNames: (itemIds = [], stainIds = [], names = []) =>
+      invoke('resolve_game_names_cmd', { itemIds, stainIds, names }),
     saveSettings: (settings) => invoke('save_settings_cmd', { settings }),
     readGameVersion: (gamePath) => invoke('read_game_version_cmd', { gamePath }),
     resolveReMakePlacePath: (configuredPath) =>

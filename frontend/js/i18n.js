@@ -3,6 +3,8 @@
 
   const SUPPORTED_LOCALES = ['ko', 'en', 'ja', 'de', 'fr'];
   const DEFAULT_PREFERENCE = 'auto';
+  const DEFAULT_GAME_DATA_PREFERENCE = 'follow_client';
+  const GAME_TERM_PREFIXES = ['game.districts.', 'game.styles.', 'game.zones.', 'game.expansions.'];
 
   const dicts = {};
   const listeners = new Set();
@@ -10,6 +12,11 @@
   let initPromise = null;
   let currentPreference = DEFAULT_PREFERENCE;
   let activeLocale = 'en';
+  let gameDataPreference = DEFAULT_GAME_DATA_PREFERENCE;
+  let clientLanguage = 0;
+  let activeGameLocale = 'ja';
+  let lastGameDataInfo = null;
+  let gameNameCache = { locale: 'ja', items: {}, stains: {}, byName: {} };
 
   function normalizeLocaleTag(tag) {
     const primary = String(tag || '')
@@ -25,6 +32,51 @@
       return 'auto';
     }
     return normalizeLocaleTag(raw);
+  }
+
+  function clientLanguageToLocale(langNum) {
+    switch (Number(langNum)) {
+      case 0:
+        return 'ja';
+      case 1:
+        return 'en';
+      case 2:
+        return 'de';
+      case 3:
+        return 'fr';
+      default:
+        return 'en';
+    }
+  }
+
+  function normalizeGameDataPreference(pref) {
+    const raw = String(pref || '').trim().toLowerCase();
+    if (!raw || raw === 'follow_client') {
+      return 'follow_client';
+    }
+    if (raw === 'follow_ui') {
+      return 'follow_ui';
+    }
+    return normalizeLocaleTag(raw);
+  }
+
+  function computeActiveGameLocale() {
+    if (gameDataPreference === 'follow_client') {
+      return clientLanguageToLocale(clientLanguage);
+    }
+    if (gameDataPreference === 'follow_ui') {
+      return activeLocale;
+    }
+    return normalizeLocaleTag(gameDataPreference);
+  }
+
+  function resetGameNameCache() {
+    gameNameCache = { locale: activeGameLocale, items: {}, stains: {}, byName: {} };
+  }
+
+  function isGameTermKey(key) {
+    const s = String(key || '');
+    return GAME_TERM_PREFIXES.some((prefix) => s.startsWith(prefix));
   }
 
   async function loadDictionaries() {
@@ -48,16 +100,20 @@
     return loadPromise;
   }
 
-  function hasKey(key) {
+  function hasKeyIn(localeCode, key) {
     return (
-      Object.prototype.hasOwnProperty.call(dicts[activeLocale] || {}, key) ||
+      Object.prototype.hasOwnProperty.call(dicts[localeCode] || {}, key) ||
       Object.prototype.hasOwnProperty.call(dicts.en || {}, key)
     );
   }
 
-  function t(key, params = {}) {
+  function hasKey(key) {
+    return hasKeyIn(activeLocale, key);
+  }
+
+  function translateFromDict(localeCode, key, params = {}) {
     const raw =
-      (dicts[activeLocale] && dicts[activeLocale][key]) ??
+      (dicts[localeCode] && dicts[localeCode][key]) ??
       (dicts.en && dicts.en[key]) ??
       key;
     if (!params || typeof params !== 'object') {
@@ -72,6 +128,14 @@
     });
   }
 
+  function t(key, params = {}) {
+    return translateFromDict(activeLocale, key, params);
+  }
+
+  function tGame(key, params = {}) {
+    return translateFromDict(activeGameLocale, key, params);
+  }
+
   function populateLocaleSelectOptions(root = document) {
     root.querySelectorAll('[data-locale-option]').forEach((opt) => {
       const code = opt.dataset.localeOption;
@@ -83,10 +147,28 @@
   }
 
   function syncSelectControls() {
-    ['topbarLocaleSelect', 'prefUiLocaleSelect'].forEach((id) => {
-      const sel = document.getElementById(id);
-      if (sel) {
-        sel.value = currentPreference;
+    const uiSel = document.getElementById('prefUiLocaleSelect');
+    if (uiSel) {
+      uiSel.value = currentPreference;
+    }
+    const gameSel = document.getElementById('prefGameDataLocaleSelect');
+    if (gameSel) {
+      gameSel.value = gameDataPreference;
+    }
+  }
+
+  function notifyListeners() {
+    const payload = {
+      preference: currentPreference,
+      locale: activeLocale,
+      gamePreference: gameDataPreference,
+      gameLocale: activeGameLocale,
+    };
+    listeners.forEach((fn) => {
+      try {
+        fn(payload);
+      } catch (err) {
+        console.error('i18n onChange listener error:', err);
       }
     });
   }
@@ -96,7 +178,8 @@
     populateLocaleSelectOptions(root);
 
     root.querySelectorAll('[data-i18n]').forEach((el) => {
-      el.textContent = t(el.dataset.i18n);
+      const key = el.dataset.i18n;
+      el.textContent = isGameTermKey(key) ? tGame(key) : t(key);
     });
     root.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
       el.placeholder = t(el.dataset.i18nPlaceholder);
@@ -129,15 +212,28 @@
     activeLocale = normalizeLocaleTag(navigator.language);
   }
 
-  function init(preference = DEFAULT_PREFERENCE) {
+  function init(
+    preference = DEFAULT_PREFERENCE,
+    gameDataPref = DEFAULT_GAME_DATA_PREFERENCE,
+    clientLang = 0
+  ) {
     if (initPromise) {
       return initPromise;
     }
     initPromise = (async () => {
       await loadDictionaries();
       await resolveInitialLocale(preference);
+      gameDataPreference = normalizeGameDataPreference(gameDataPref);
+      clientLanguage = Number(clientLang) || 0;
+      activeGameLocale = computeActiveGameLocale();
+      resetGameNameCache();
       applyDom(document);
-      return { preference: currentPreference, locale: activeLocale };
+      return {
+        preference: currentPreference,
+        locale: activeLocale,
+        gamePreference: gameDataPreference,
+        gameLocale: activeGameLocale,
+      };
     })();
     return initPromise;
   }
@@ -154,15 +250,193 @@
     }
     currentPreference = pref;
     activeLocale = normalizeLocaleTag(resolved);
-    applyDom(document);
-    listeners.forEach((fn) => {
-      try {
-        fn({ preference: currentPreference, locale: activeLocale });
-      } catch (err) {
-        console.error('i18n onChange listener error:', err);
+    if (gameDataPreference === 'follow_ui') {
+      const nextGameLocale = computeActiveGameLocale();
+      if (nextGameLocale !== activeGameLocale) {
+        activeGameLocale = nextGameLocale;
+        resetGameNameCache();
       }
-    });
-    return { preference: currentPreference, locale: activeLocale };
+    }
+    applyDom(document);
+    notifyListeners();
+    return {
+      preference: currentPreference,
+      locale: activeLocale,
+      gamePreference: gameDataPreference,
+      gameLocale: activeGameLocale,
+    };
+  }
+
+  async function setGameDataLocale(preference, clientLang = clientLanguage) {
+    await loadDictionaries();
+    gameDataPreference = normalizeGameDataPreference(preference);
+    clientLanguage = Number(clientLang) || 0;
+    const Bridge = window.FoundationBridge;
+    let info = null;
+    if (Bridge && typeof Bridge.setGameDataLocale === 'function') {
+      info = await Bridge.setGameDataLocale(gameDataPreference);
+      lastGameDataInfo = info;
+      activeGameLocale = normalizeLocaleTag(info?.requestedLocale || computeActiveGameLocale());
+    } else {
+      activeGameLocale = computeActiveGameLocale();
+    }
+    resetGameNameCache();
+    applyDom(document);
+    notifyListeners();
+    return info;
+  }
+
+  function syncClientLanguage(clientLang) {
+    const nextLang = Number(clientLang) || 0;
+    if (nextLang === clientLanguage && gameNameCache.locale === computeActiveGameLocale()) {
+      return;
+    }
+    clientLanguage = nextLang;
+    if (gameDataPreference === 'follow_client') {
+      const nextGameLocale = computeActiveGameLocale();
+      if (nextGameLocale !== activeGameLocale) {
+        activeGameLocale = nextGameLocale;
+        resetGameNameCache();
+        applyDom(document);
+        notifyListeners();
+      }
+    }
+  }
+
+  async function refreshGameDataInfo() {
+    const Bridge = window.FoundationBridge;
+    if (!Bridge || typeof Bridge.getGameDataInfo !== 'function') {
+      return lastGameDataInfo;
+    }
+    const info = await Bridge.getGameDataInfo();
+    lastGameDataInfo = info || null;
+    if (info?.requestedLocale) {
+      const nextGameLocale = normalizeLocaleTag(info.requestedLocale);
+      if (nextGameLocale !== activeGameLocale) {
+        activeGameLocale = nextGameLocale;
+        resetGameNameCache();
+        applyDom(document);
+        notifyListeners();
+      }
+    }
+    return info;
+  }
+
+  async function resolveGameNames(itemIds = [], stainIds = [], names = []) {
+    const Bridge = window.FoundationBridge;
+    if (!Bridge || typeof Bridge.resolveGameNames !== 'function') {
+      return false;
+    }
+    if (lastGameDataInfo && !lastGameDataInfo.gameDirValid) {
+      return false;
+    }
+    if (gameNameCache.locale !== activeGameLocale) {
+      resetGameNameCache();
+    }
+
+    const reqItems = [];
+    const seenItems = new Set();
+    for (const raw of itemIds || []) {
+      const id = Number(raw);
+      if (Number.isInteger(id) && id > 0 && !seenItems.has(id)) {
+        const key = String(id);
+        if (!Object.prototype.hasOwnProperty.call(gameNameCache.items, key)) {
+          seenItems.add(id);
+          reqItems.push(id);
+        }
+      }
+    }
+
+    const reqStains = [];
+    const seenStains = new Set();
+    for (const raw of stainIds || []) {
+      const id = Number(raw);
+      if (Number.isInteger(id) && id > 0 && id <= 255 && !seenStains.has(id)) {
+        const key = String(id);
+        if (!Object.prototype.hasOwnProperty.call(gameNameCache.stains, key)) {
+          seenStains.add(id);
+          reqStains.push(id);
+        }
+      }
+    }
+
+    const reqNames = [];
+    const seenNames = new Set();
+    for (const raw of names || []) {
+      const s = String(raw || '').trim();
+      if (s && !seenNames.has(s) && !Object.prototype.hasOwnProperty.call(gameNameCache.byName, s)) {
+        seenNames.add(s);
+        reqNames.push(s);
+      }
+    }
+
+    if (!reqItems.length && !reqStains.length && !reqNames.length) {
+      return false;
+    }
+
+    const cacheRef = gameNameCache;
+    const res = await Bridge.resolveGameNames(reqItems, reqStains, reqNames);
+    if (!res || gameNameCache !== cacheRef) {
+      return false;
+    }
+
+    let changed = false;
+    const retItems = res.items || {};
+    for (const id of reqItems) {
+      const key = String(id);
+      const val = typeof retItems[key] === 'string' && retItems[key] ? retItems[key] : null;
+      if (val && gameNameCache.items[key] !== val) {
+        changed = true;
+      }
+      gameNameCache.items[key] = val;
+    }
+
+    const retStains = res.stains || {};
+    for (const id of reqStains) {
+      const key = String(id);
+      const val = typeof retStains[key] === 'string' && retStains[key] ? retStains[key] : null;
+      if (val && gameNameCache.stains[key] !== val) {
+        changed = true;
+      }
+      gameNameCache.stains[key] = val;
+    }
+
+    const retByName = res.byName || {};
+    for (const name of reqNames) {
+      const val = typeof retByName[name] === 'string' && retByName[name] ? retByName[name] : null;
+      if (val && gameNameCache.byName[name] !== val) {
+        changed = true;
+      }
+      gameNameCache.byName[name] = val;
+    }
+
+    return changed;
+  }
+
+  function getItemName(itemId, fallbackName = '') {
+    const id = Number(itemId);
+    if (Number.isInteger(id) && id > 0) {
+      const hit = gameNameCache.items[String(id)];
+      if (hit) {
+        return hit;
+      }
+    }
+    const fb = String(fallbackName || '').trim();
+    if (fb && gameNameCache.byName[fb]) {
+      return gameNameCache.byName[fb];
+    }
+    return fb;
+  }
+
+  function getStainName(stainId, fallback = '') {
+    const id = Number(stainId);
+    if (Number.isInteger(id) && id > 0) {
+      const hit = gameNameCache.stains[String(id)];
+      if (hit) {
+        return hit;
+      }
+    }
+    return fallback;
   }
 
   function onChange(fn) {
@@ -242,16 +516,16 @@
 
   function formatDistrict(tid) {
     const key = `game.districts.${tid}`;
-    if (hasKey(key)) {
-      return t(key);
+    if (hasKeyIn(activeGameLocale, key)) {
+      return tGame(key);
     }
     return t('game.district_fallback', { tid });
   }
 
   function formatZone(zoneId) {
     const key = `game.zones.${zoneId}`;
-    if (hasKey(key)) {
-      return t(key);
+    if (hasKeyIn(activeGameLocale, key)) {
+      return tGame(key);
     }
     return t('game.zone_fallback', { zoneId });
   }
@@ -286,7 +560,7 @@
     }
     const key = canonicalStyleKey(val);
     if (key && key !== 'unknown') {
-      return t(`game.styles.${key}`);
+      return tGame(`game.styles.${key}`);
     }
     return val;
   }
@@ -410,7 +684,7 @@
 
   function formatExpansion(level) {
     const key = `game.expansions.${level}`;
-    return hasKey(key) ? t(key) : String(level);
+    return hasKeyIn(activeGameLocale, key) ? tGame(key) : String(level);
   }
 
   window.FoundationI18n = {
@@ -418,10 +692,20 @@
     init,
     ready: () => initPromise || init(DEFAULT_PREFERENCE),
     setLocale,
+    setGameDataLocale,
+    syncClientLanguage,
+    refreshGameDataInfo,
+    resolveGameNames,
+    getItemName,
+    getStainName,
     onChange,
     t,
+    tGame,
     locale: () => activeLocale,
     preference: () => currentPreference,
+    gameLocale: () => activeGameLocale,
+    gamePreference: () => gameDataPreference,
+    gameDataInfo: () => lastGameDataInfo,
     bcp47: () => t('meta.bcp47') || 'en-US',
     applyDom,
     formatDistrict,

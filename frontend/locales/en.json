@@ -713,5 +713,15 @@
   "runtime.source_managed": "Studio folder",
   "runtime.source_custom": "Custom folder",
   "runtime.source_dev": "Developer source",
-  "runtime.source_missing": "Not installed"
+  "runtime.source_missing": "Not installed",
+
+  "desktop.game_data_language": "Game Data Language",
+  "desktop.game_lang_follow_client": "Follow Client Language",
+  "desktop.game_lang_follow_ui": "Follow UI Language",
+  "desktop.game_data_hint_ok": "Item and place names load in '{effective}' from game data (available: {langs}).",
+  "desktop.game_data_hint_fallback": "'{requested}' is not in this client's data; falling back to '{effective}' (available: {langs}).",
+  "desktop.game_data_hint_no_game": "Set the Game Path above to load official localized item and dye names directly from your client.",
+  "runtime.btn_open_folder": "Open Folder",
+  "runtime.btn_open_file": "Open",
+  "runtime.btn_open_config": "Open config.yaml"
 }

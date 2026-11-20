@@ -713,5 +713,15 @@
   "runtime.source_managed": "Dossier Studio",
   "runtime.source_custom": "Dossier personnalisé",
   "runtime.source_dev": "Source de développement",
-  "runtime.source_missing": "Non installé"
+  "runtime.source_missing": "Non installé",
+
+  "desktop.game_data_language": "Langue des données du jeu",
+  "desktop.game_lang_follow_client": "Selon la langue du client",
+  "desktop.game_lang_follow_ui": "Selon la langue de l'interface",
+  "desktop.game_data_hint_ok": "Les noms d'objets et de lieux sont chargés en '{effective}' (disponibles : {langs}).",
+  "desktop.game_data_hint_fallback": "'{requested}' est absent des données du jeu ; repli sur '{effective}' (disponibles : {langs}).",
+  "desktop.game_data_hint_no_game": "Définissez le chemin du jeu pour charger les noms officiels d'objets et de teintures.",
+  "runtime.btn_open_folder": "Ouvrir le dossier",
+  "runtime.btn_open_file": "Ouvrir",
+  "runtime.btn_open_config": "Ouvrir config.yaml"
 }

@@ -713,5 +713,15 @@
   "runtime.source_managed": "Studio-Ordner",
   "runtime.source_custom": "Eigener Ordner",
   "runtime.source_dev": "Entwicklerquelle",
-  "runtime.source_missing": "Nicht installiert"
+  "runtime.source_missing": "Nicht installiert",
+
+  "desktop.game_data_language": "Spieldaten-Sprache",
+  "desktop.game_lang_follow_client": "Wie Client-Sprache",
+  "desktop.game_lang_follow_ui": "Wie UI-Sprache",
+  "desktop.game_data_hint_ok": "Gegenstands- und Ortsnamen werden auf '{effective}' geladen (verfügbar: {langs}).",
+  "desktop.game_data_hint_fallback": "'{requested}' fehlt in diesen Spieldaten; es wird '{effective}' verwendet (verfügbar: {langs}).",
+  "desktop.game_data_hint_no_game": "Lege den Spielpfad fest, um offizielle Gegenstands- und Farbnamen aus dem Client zu laden.",
+  "runtime.btn_open_folder": "Ordner öffnen",
+  "runtime.btn_open_file": "Öffnen",
+  "runtime.btn_open_config": "config.yaml öffnen"
 }

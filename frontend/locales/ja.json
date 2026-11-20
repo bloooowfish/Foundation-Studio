@@ -713,5 +713,15 @@
   "runtime.source_managed": "Studio フォルダー",
   "runtime.source_custom": "カスタム",
   "runtime.source_dev": "開発ソース",
-  "runtime.source_missing": "未インストール"
+  "runtime.source_missing": "未インストール",
+
+  "desktop.game_data_language": "ゲームデータ言語",
+  "desktop.game_lang_follow_client": "クライアント言語に合わせる",
+  "desktop.game_lang_follow_ui": "UI 表示言語に合わせる",
+  "desktop.game_data_hint_ok": "ゲームデータから '{effective}' でアイテム・地域名を読み込みます (対応: {langs})。",
+  "desktop.game_data_hint_fallback": "このゲームデータに '{requested}' がないため '{effective}' を使用します (対応: {langs})。",
+  "desktop.game_data_hint_no_game": "ゲームパスを設定すると、クライアントから公式の家具・カララント名を直接読み込みます。",
+  "runtime.btn_open_folder": "フォルダーを開く",
+  "runtime.btn_open_file": "開く",
+  "runtime.btn_open_config": "config.yaml を開く"
 }
