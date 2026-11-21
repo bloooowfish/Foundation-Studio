@@ -2939,6 +2939,7 @@
     refreshAll,
     refreshLocalPresets,
     toast,
+    confirmAction,
     pushExternalLog: (kind, source, message) => pushLog({ kind, category: 'launcher', source, message }),
     syncWatchedSettings: (dirs, autoApply) => {
       state.watchedDirs = Array.isArray(dirs) ? [...dirs] : [];

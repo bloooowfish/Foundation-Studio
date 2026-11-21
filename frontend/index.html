@@ -958,6 +958,24 @@
               <div class="muted small-text hidden" id="setupDevNote" data-i18n="runtime.dev_note">A developer source folder is in use. Update it with git, or switch to the Foundation Studio folder above to get prebuilt updates.</div>
             </div>
           </div>
+
+          <div class="panel" id="runtimeLegalNoticePanel">
+            <div class="panel-header">
+              <h3 data-i18n="legal.runtime_title">External Components &amp; License Notices</h3>
+            </div>
+            <div class="legal-list">
+              <div class="legal-item" data-i18n="legal.runtime_foundation">Foundation Server (bloooowfish/Foundation) is licensed under AGPL-3.0 and runs as a separate external process. rmp-bridge (bloooowfish/rmp-bridge) is licensed under GPL-3.0-or-later.</div>
+              <div class="legal-item" data-i18n="legal.runtime_oodle">Oodle Network DLL is downloaded from WorkingRobot/OodleUE, a third-party unofficial build mirror (NOT an official Epic Games or RAD Game Tools release) and is subject to the Unreal Engine EULA. You may alternatively place your own local oodle-network-shared.dll into the oodle/ folder.</div>
+              <div class="legal-item" data-i18n="legal.runtime_rmp">ReMakePlace is an independent third-party closed-source application (All Rights Reserved by RemakePlace/app). It is never bundled with Studio and is downloaded directly from ReMakePlace releases only upon your explicit action.</div>
+              <div class="legal-item" data-i18n="legal.runtime_ue4ss">RE-UE4SS (UE4SS-RE/RE-UE4SS) is licensed under the MIT License and downloaded from official GitHub Releases with SHA-256 verification inside the shadow ReMakePlace runtime.</div>
+            </div>
+            <div class="button-row legal-links">
+              <button class="btn btn-ghost btn-xs" type="button" data-open-url="https://www.unrealengine.com/eula/unreal" data-i18n="legal.link_ue_eula">Unreal Engine EULA</button>
+              <button class="btn btn-ghost btn-xs" type="button" data-open-url="https://github.com/WorkingRobot/OodleUE" data-i18n="legal.link_oodleue">WorkingRobot/OodleUE</button>
+              <button class="btn btn-ghost btn-xs" type="button" data-open-url="https://github.com/RemakePlace/app/releases" data-i18n="legal.link_rmp">ReMakePlace Releases</button>
+              <button class="btn btn-ghost btn-xs" type="button" data-open-url="https://github.com/UE4SS-RE/RE-UE4SS" data-i18n="legal.link_ue4ss">RE-UE4SS (MIT)</button>
+            </div>
+          </div>
         </section>
 
         <!-- ================= SETTINGS ================= -->
@@ -1153,6 +1171,22 @@
               </div>
             </div>
           </div>
+
+          <details class="panel settings-details" id="settingsLicenseDetails">
+            <summary class="details-summary" data-i18n="legal.settings_title">Licenses &amp; Open-Source Notices</summary>
+            <div class="legal-list">
+              <div class="legal-item" data-i18n="legal.settings_core">Foundation Studio and rmp-bridge-relay are licensed under GPL-3.0-or-later. Local SqPack Item/Stain lookup uses physis (GPL-3.0-or-later). The Foundation server is licensed under AGPL-3.0 and launched as a separate external process.</div>
+              <div class="legal-item" data-i18n="legal.settings_deps">Third-party Rust/Tauri dependencies retain their respective licenses (MIT, Apache-2.0, BSD, ISC, Zlib, bzip2, and unmodified MPL-2.0 crates). Full notices and MPL-2.0 source locations are provided in THIRD_PARTY_NOTICES.txt bundled with release archives.</div>
+              <div class="legal-item" data-i18n="legal.settings_external">External runtime downloads are not bundled or affiliated: WorkingRobot/OodleUE (third-party unofficial Oodle build mirror, Unreal Engine EULA), ReMakePlace (third-party closed-source app, All Rights Reserved), and RE-UE4SS (MIT License).</div>
+              <div class="legal-item" data-i18n="legal.settings_trademarks">FINAL FANTASY and FINAL FANTASY XIV are registered trademarks of Square Enix Co., Ltd. No game assets or proprietary DLLs are distributed; local SqPack data is read on-device only.</div>
+            </div>
+            <div class="button-row legal-links">
+              <button class="btn btn-ghost btn-xs" type="button" data-open-url="https://github.com/bloooowfish/Foundation-Studio" data-i18n="legal.link_studio_repo">Foundation Studio GitHub</button>
+              <button class="btn btn-ghost btn-xs" type="button" data-open-url="https://github.com/bloooowfish/Foundation" data-i18n="legal.link_foundation_repo">Foundation GitHub (AGPL-3.0)</button>
+              <button class="btn btn-ghost btn-xs" type="button" data-open-url="https://github.com/redstrate/physis" data-i18n="legal.link_physis">physis (GPL-3.0-or-later)</button>
+              <button class="btn btn-ghost btn-xs" type="button" data-open-url="https://www.unrealengine.com/eula/unreal" data-i18n="legal.link_ue_eula">Unreal Engine EULA</button>
+            </div>
+          </details>
 
           <details class="panel settings-details" id="settingsDevDetails">
             <summary class="details-summary" data-i18n="settings.group_dev">Developer tools</summary>

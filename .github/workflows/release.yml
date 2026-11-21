@@ -58,6 +58,7 @@ jobs:
           Copy-Item -Path $exe -Destination (Join-Path $stage 'foundation-studio.exe') -Force
           Copy-Item -Path 'Foundation-Studio\LICENSE' -Destination (Join-Path $stage 'LICENSE') -Force
           Copy-Item -Path 'Foundation-Studio\README.md' -Destination (Join-Path $stage 'README.md') -Force
+          python Foundation-Studio/scripts/generate-third-party-notices.py --manifest Foundation-Studio/Cargo.toml --output (Join-Path $stage 'THIRD_PARTY_NOTICES.txt')
 
           $zipPath = Join-Path $dist 'foundation-studio-windows-x64.zip'
           Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zipPath -CompressionLevel Optimal -Force

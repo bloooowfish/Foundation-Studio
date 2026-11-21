@@ -46,20 +46,25 @@ On first launch (when `%AppData%\FoundationStudio\settings.json` does not yet ex
 
 ## Credits & Acknowledgements
 
-- **[Kawari](https://codeberg.org/redstrate/Kawari)** by **redstrate** and Kawari contributors — for the upstream server foundation, autoconfig endpoint, and direct-launch protocol. Foundation Studio is an independent companion project for the Foundation fork and is not affiliated with or supported by upstream Kawari.
+- **[Kawari](https://codeberg.org/redstrate/Kawari)** and **[physis](https://github.com/redstrate/physis)** by **redstrate** (Joshua Goins) and contributors — `Kawari` provides the upstream server foundation, autoconfig endpoint, and direct-launch protocol, and `physis` (`GPL-3.0-or-later`) powers local SqPack `Item`/`Stain` lookup for multilingual furniture and dye names. Foundation Studio is an independent companion project for the Foundation fork and is not affiliated with or supported by upstream Kawari.
 - **MakePlace & [ReMakePlace](https://github.com/RemakePlace/app)** — originally created by **jawslouis** and maintained by the ReMakePlace community.
-- **[RE-UE4SS](https://github.com/UE4SS-RE/RE-UE4SS)** (MIT License) — powering Lua scripting inside the shadow ReMakePlace runtime (downloaded automatically by [`rmp-bridge`](https://github.com/bloooowfish/rmp-bridge) from official releases on first run).
+- **[RE-UE4SS](https://github.com/UE4SS-RE/RE-UE4SS)** (MIT License) — powering Lua scripting inside the shadow ReMakePlace runtime (downloaded automatically from official releases on first use with SHA-256 verification).
 - **[Tauri](https://tauri.app)** — native desktop runtime.
 
 ## License & Legal Notices
 
 - **License**: Foundation Studio is licensed under the **[GNU General Public License v3.0 or later (GPL-3.0-or-later)](LICENSE)**.
-- **Companion & Third-Party Licenses**:
+- **Linked Companion & Third-Party Crates**:
   - **[`rmp-bridge`](https://github.com/bloooowfish/rmp-bridge)** (`rmp-bridge-relay`): Licensed under **GPL-3.0-or-later** ([`rmp-bridge/LICENSE`](https://github.com/bloooowfish/rmp-bridge/blob/main/LICENSE)).
-  - **[`Foundation`](https://github.com/bloooowfish/Foundation)**: Operated and launched only as an external child process/HTTP+SSE service and remains separately licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** ([`Foundation/LICENSE`](https://github.com/bloooowfish/Foundation/blob/main/LICENSE)).
-  - **RE-UE4SS**: Automatically downloaded from official GitHub Releases by `rmp-bridge` (`prepare-shadow.ps1`) with SHA-256 verification and loaded inside the shadow ReMakePlace runtime; licensed under the **[MIT License](https://github.com/UE4SS-RE/RE-UE4SS/blob/main/LICENSE)**.
-  - **Rust / Tauri Dependencies**: Direct and transitive crate dependencies retain their respective open-source licenses (predominantly MIT/Apache-2.0/BSD/ISC, plus unmodified MPL-2.0 crates).
+  - **[`physis`](https://github.com/redstrate/physis)**: Licensed under **GPL-3.0-or-later**; used directly in-process to read `Item` and `Stain` names from user-supplied local SqPack files without redistributing any game assets.
+  - **Rust / Tauri Dependencies**: Direct and transitive crate dependencies retain their respective open-source licenses (predominantly MIT/Apache-2.0/BSD/ISC/Zlib, plus unmodified MPL-2.0 crates). Prebuilt release archives include `THIRD_PARTY_NOTICES.txt` containing full third-party license/copyright notices and upstream MPL-2.0 source locations under MPL-2.0 Section 3.3.
+- **Runtime-Downloaded External Components (Not Bundled)**:
+  - **[`Foundation`](https://github.com/bloooowfish/Foundation)** (`AGPL-3.0`): Operated and launched strictly as a separate external child process / HTTP+SSE service; source remains under AGPL-3.0.
+  - **[`rmp-bridge`](https://github.com/bloooowfish/rmp-bridge)** (`GPL-3.0-or-later`): Runtime scripts and `FoundationBridge` Lua mod, downloaded from GitHub releases or branch archives.
+  - **RE-UE4SS (`v4.0.0`, [MIT License](https://github.com/UE4SS-RE/RE-UE4SS/blob/main/LICENSE))**: Downloaded from official `UE4SS-RE/RE-UE4SS` GitHub Releases with SHA-256 verification and used inside the isolated shadow ReMakePlace runtime.
+  - **Oodle Network DLL (`WorkingRobot/OodleUE`)**: Downloaded only upon explicit user confirmation via a third-party unofficial build mirror ([WorkingRobot/OodleUE](https://github.com/WorkingRobot/OodleUE)), **not** an official Epic Games or RAD Game Tools release. Use of Oodle binaries is governed by the **[Unreal Engine EULA](https://www.unrealengine.com/eula/unreal)**. Foundation Studio never bundles `oodle-network-shared.dll`, and users may alternatively provide their own locally obtained DLL in the `oodle/` folder.
+  - **ReMakePlace ([RemakePlace/app](https://github.com/RemakePlace/app))**: Independent third-party closed-source application (no open-source license; All Rights Reserved by its authors). Downloaded directly from ReMakePlace releases only upon explicit user action; never bundled or redistributed by Foundation Studio.
 - **Trademarks, Game Terminology & Non-Affiliation**:
-  - *FINAL FANTASY* and *FINAL FANTASY XIV* are registered trademarks of Square Enix Co., Ltd. Foundation Studio is an independent, non-commercial community companion tool and is **not affiliated with, endorsed by, or supported by** Square Enix, upstream Kawari, MakePlace / ReMakePlace, or RE-UE4SS.
-  - Localized district, zone, style, and fixture terms in `frontend/locales/*.json` are used solely for UI identification; no copyrighted game assets, retail executables, or proprietary third-party libraries (such as `oodle-network-shared.dll`) are distributed in this repository.
+  - *FINAL FANTASY* and *FINAL FANTASY XIV* are registered trademarks of Square Enix Co., Ltd. Foundation Studio is an independent, non-commercial community companion tool and is **not affiliated with, endorsed by, or supported by** Square Enix, upstream Kawari, Epic Games / RAD Game Tools, MakePlace / ReMakePlace, or RE-UE4SS.
+  - Localized UI strings in `frontend/locales/*.json` contain UI identification labels only; game item and dye names are read locally on-device from the user's client SqPack files. No copyrighted game assets, retail executables, or proprietary third-party binaries are distributed in this repository or its release archives.
 - **Development Transparency**: Portions of this companion application and its tooling were created with AI-assisted software engineering.

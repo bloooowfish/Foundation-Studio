@@ -694,7 +694,22 @@
     return missing;
   }
 
+  async function confirmOodleDownloadIfNeeded(components) {
+    const needsOodle = Array.isArray(components)
+      && components.some((c) => String(c || '').trim().toLowerCase() === 'oodle');
+    if (!needsOodle || typeof Studio?.confirmAction !== 'function') {
+      return true;
+    }
+    return await Studio.confirmAction(
+      I18n.t('legal.oodle_confirm_title'),
+      I18n.t('legal.oodle_confirm_body')
+    );
+  }
+
   async function runSetupInstall(components) {
+    if (!(await confirmOodleDownloadIfNeeded(components))) {
+      return;
+    }
     const useManaged = !!$('setupUseManagedDirCheck')?.checked;
     const profile = $('srvProfileSelect')?.value || 'debug';
     showSetupProgress({ percent: 5, text: I18n.t('setup.install_start', { count: components.length }) });
@@ -731,6 +746,9 @@
   async function runComponentUpdate(component) {
     if (typeof Bridge.updateRuntimeComponent !== 'function') {
       await runSetupInstall([component]);
+      return;
+    }
+    if (!(await confirmOodleDownloadIfNeeded([component]))) {
       return;
     }
     const name = I18n.t(COMPONENT_UI[component]?.nameKey || 'runtime.title');
@@ -962,6 +980,18 @@
     $('btnSettingsOpenFoundation')?.addEventListener('click', () => openPathInExplorer(activeFoundationDir()));
     $('btnSettingsOpenConfig')?.addEventListener('click', () => openPathInExplorer(activeConfigPath()));
     $('btnSettingsOpenRmp')?.addEventListener('click', () => openPathInExplorer($('rmpPathInput')?.value));
+
+    document.querySelectorAll('[data-open-url]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const url = btn.dataset.openUrl;
+        if (!url) return;
+        try {
+          await Bridge.openExternalUrl(url);
+        } catch (err) {
+          Studio?.toast(err.message || url, true);
+        }
+      });
+    });
 
     const togglePin = async (targetPinned) => {
       try {
