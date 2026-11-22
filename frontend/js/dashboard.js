@@ -709,6 +709,10 @@
         apiJson('/presets').catch(() => ({ files: [] })),
       ]);
 
+      if (!state.sseConnected) {
+        Bridge.reconnectSse().catch(() => {});
+      }
+
       $('protocolPatchBadge').textContent = status.protocol_patch || '7.58';
       state.primarySession = Array.isArray(status.online_sessions) && status.online_sessions.length > 0
         ? status.online_sessions[0]
@@ -2939,7 +2943,7 @@
     refreshAll,
     refreshLocalPresets,
     toast,
-    confirmAction,
+    confirmAction: askConfirm,
     pushExternalLog: (kind, source, message) => pushLog({ kind, category: 'launcher', source, message }),
     syncWatchedSettings: (dirs, autoApply) => {
       state.watchedDirs = Array.isArray(dirs) ? [...dirs] : [];

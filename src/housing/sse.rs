@@ -78,10 +78,11 @@ pub fn spawn_sse_bridge(app: AppHandle, housing: Arc<HousingClientState>) {
                 _ => {}
             }
 
-            emit_status(&app, &mut last_connected, false, &events_url);
             if reconnect_now {
+                last_connected = None;
                 continue;
             }
+            emit_status(&app, &mut last_connected, false, &events_url);
 
             tokio::select! {
                 _ = tokio::time::sleep(Duration::from_millis(1500)) => {}
@@ -89,6 +90,7 @@ pub fn spawn_sse_bridge(app: AppHandle, housing: Arc<HousingClientState>) {
                     if changed.is_err() {
                         return;
                     }
+                    last_connected = None;
                 }
             }
         }

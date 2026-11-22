@@ -34,6 +34,9 @@ jobs:
         with:
           workspaces: Foundation-Studio
 
+      - name: Verify frontend JS boot
+        run: node Foundation-Studio/scripts/smoke-frontend.js
+
       - name: Run unit tests
         run: cargo test --manifest-path Foundation-Studio/Cargo.toml
 
